@@ -40,53 +40,29 @@ const CreateBranch = ({ onBranchCreated }) => {
 
     const fetchManagers = async () => {
         setLoadingManagers(true);
+
         try {
-            // First, get all job titles to identify which ones are managers
+            // Get all job titles
             const jobTitlesResponse = await axiosInstance.get('/staff/get-all-job-titles/');
             const jobTitlesResult = jobTitlesResponse.data;
-            
-            if (!jobTitlesResult.success) {
-                throw new Error('Failed to fetch job titles');
-            }
-            
-            // Get IDs of job titles that create manager accounts
-            const managerJobTitleIds = jobTitlesResult.data
-                .filter(job => job.creates_manager_account === true)
-                .map(job => job.id);
-            
-            console.log('Manager Job Title IDs:', managerJobTitleIds);
-            
-            if (managerJobTitleIds.length === 0) {
-                setManagers([]);
-                setLoadingManagers(false);
-                return;
-            }
-            
-            // Now fetch all staff members
-            const staffResponse = await axiosInstance.get('/staff/get-all-staff/');
-            const staffResult = staffResponse.data;
-            
-            if (staffResult.success) {
-                // Filter staff members who have manager job titles
-                const managerStaff = staffResult.data.filter(staff => 
-                    managerJobTitleIds.includes(staff.job_title)
-                );
-                
-                console.log('Manager Staff:', managerStaff);
-                setManagers(managerStaff);
-            } else {
-                console.error('Failed to fetch staff');
-                setManagers([]);
-            }
-        } catch (error) {
-            console.error('Error fetching managers:', error);
+
+            if (!jobTitlesResult.success) throw new Error('Failed to fetch job titles');
+
+            // Only get job titles that can create manager accounts
+            const managerJobTitles = jobTitlesResult.data.filter(job => job.creates_manager_account);
+
+            console.log('Manager Job Titles:', managerJobTitles);
+
+            setManagers(managerJobTitles);
+        } catch (err) {
+            console.error('Error fetching manager job titles:', err);
+            setManagers([]);
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
                 text: 'Failed to load manager options',
                 confirmButtonColor: '#111111'
             });
-            setManagers([]);
         } finally {
             setLoadingManagers(false);
         }
@@ -116,7 +92,7 @@ const CreateBranch = ({ onBranchCreated }) => {
                 closing_time: formData.closing_time,
                 gst_number: formData.gst_number.trim(),
                 tax_rate: formData.tax_rate ? parseFloat(formData.tax_rate) : null,
-                manager: formData.manager ? parseInt(formData.manager) : null  // This should be the staff/user ID
+                manager: formData.manager.id  
             };
 
             console.log('Sending payload:', payload);
@@ -242,10 +218,9 @@ const CreateBranch = ({ onBranchCreated }) => {
                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
                                         >
                                             <option value="">Select Branch Manager</option>
-                                            {managers.map((manager) => (
+                                            {managers.map(manager => (
                                                 <option key={manager.id} value={manager.id}>
-                                                    {manager.name || manager.username || manager.email} 
-                                                    {manager.job_title_name && ` - ${manager.job_title_name}`}
+                                                    {manager.name}
                                                 </option>
                                             ))}
                                         </select>
@@ -255,7 +230,7 @@ const CreateBranch = ({ onBranchCreated }) => {
                                                 Loading managers...
                                             </p>
                                         )}
-                                        
+
                                         {!loadingManagers && managers.length === 0 && (
                                             <p className="text-xs text-amber-600 mt-2">
                                                 No managers found. Please create a staff member with a manager job title first.

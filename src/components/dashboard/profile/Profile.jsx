@@ -7,8 +7,33 @@ import {
   MdPhone,
   MdLocationOn,
   MdEdit,
-  MdLock
+  MdLock,
+  MdBusiness,
+  MdBadge
 } from "react-icons/md";
+
+const API_BASE = "https://saloon.mrshakil.com/api";
+
+// Helper for authenticated requests
+async function apiFetch(endpoint, options = {}) {
+    const token = localStorage.getItem("token");
+    
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Token ${token}`,
+            ...options.headers,
+        },
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "API request failed");
+    }
+    
+    return response.json();
+}
 
 export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
   const [userData, setUserData] = useState(null);
@@ -32,32 +57,12 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
   const [passwordError, setPasswordError] = useState(null);
   const modalRef = useRef(null);
 
-  // Get auth token from localStorage or your auth system
-  const getAuthToken = () => {
-    // Replace this with your actual token retrieval method
-    return localStorage.getItem('auth_token') || '73e4c3a1fbc67f4ebdae84b0d3a7e2b03539c514';
-  };
-
   // Fetch user profile when modal opens
   const fetchUserProfile = async () => {
     setLoading(true);
     setError(null);
     try {
-      const token = getAuthToken();
-      const response = await fetch('https://saloon.mrshakil.com/api/user/profile/', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${token}`
-        }
-      });
-      
-      // Check if response is OK
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
+      const result = await apiFetch('/user/profile/');
       
       if (result.success) {
         setUserData(result.data);
@@ -88,21 +93,14 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
     setSuccessMessage(null);
     
     try {
-      const token = getAuthToken();
-      const response = await fetch('https://saloon.mrshakil.com/api/user/profile/', {
+      const result = await apiFetch('/user/profile/update/', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${token}`
-        },
-        body: JSON.stringify(editFormData)
+        body: JSON.stringify({
+          first_name: editFormData.first_name,
+          last_name: editFormData.last_name,
+          address: editFormData.address
+        })
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
       
       if (result.success) {
         setUserData(result.data);
@@ -143,24 +141,13 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
     setLoading(true);
     
     try {
-      const token = getAuthToken();
-      const response = await fetch('https://saloon.mrshakil.com/api/user/change-password/', {
+      const result = await apiFetch('/user/change-password/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Token ${token}`
-        },
         body: JSON.stringify({
           old_password: passwordData.old_password,
           new_password: passwordData.new_password
         })
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
       
       if (result.success) {
         setShowChangePassword(false);
@@ -205,6 +192,9 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
   };
 
   if (!isOpen) return null;
+
+  // Get user role from localStorage
+  const userRole = localStorage.getItem("role") || "customer";
 
   return (
     <div className="fixed inset-0 bg-black/70 text-white backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -252,19 +242,17 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-[#dba627]/20">
                 <div className="relative">
                   <img
-                    src={userData?.avatar || `https://ui-avatars.com/api/?name=${userData?.first_name}+${userData?.last_name}&background=dba627&color=fff`}
+                    src={userData?.avatar || `https://ui-avatars.com/api/?name=${userData?.first_name || 'User'}+${userData?.last_name || ''}&background=dba627&color=fff&bold=true`}
                     alt="Profile"
                     className="w-20 h-20 rounded-full object-cover border-2 border-[#dba627]"
                   />
-                  <button className="absolute bottom-0 right-0 p-1.5 bg-[#dba627] rounded-full text-black hover:bg-[#dba627]/80 transition-colors">
-                    <MdEdit size={14} />
-                  </button>
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white">
                     {userData?.first_name} {userData?.last_name}
                   </h3>
-                  <p className="text-[#dba627] text-sm">{userData?.role || "Customer"}</p>
+                  <p className="text-[#dba627] text-sm capitalize">{userRole}</p>
+                  <p className="text-xs text-offwhite/40">ID: {userData?.id}</p>
                 </div>
               </div>
 
@@ -355,6 +343,31 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                       </p>
                     </div>
                   </div>
+
+                  {/* Manager Specific Info */}
+                  {userRole === "manager" && (
+                    <>
+                      <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
+                        <MdBusiness className="text-[#dba627] mt-1 flex-shrink-0" size={20} />
+                        <div className="flex-1">
+                          <p className="text-xs text-offwhite/50 uppercase">Managed Branch</p>
+                          <p className="text-white font-medium break-words">
+                            {userData.managed_branch_name || "Not assigned"}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start gap-3 p-3 bg-white/5 rounded-lg">
+                        <MdBadge className="text-[#dba627] mt-1 flex-shrink-0" size={20} />
+                        <div className="flex-1">
+                          <p className="text-xs text-offwhite/50 uppercase">Staff ID</p>
+                          <p className="text-white font-medium break-words">
+                            {userData.staff_id || "Not assigned"}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -394,8 +407,7 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                     <input
                       type="email"
                       value={editFormData.email}
-                      onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
-                      className="w-full px-4 py-2 bg-white/5 border border-[#dba627]/20 rounded-lg text-white focus:outline-none focus:border-[#dba627] transition-colors bg-gray-800/50 cursor-not-allowed"
+                      className="w-full px-4 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
                       disabled
                     />
                     <p className="text-xs text-offwhite/40 mt-1">Email cannot be changed</p>
@@ -408,9 +420,10 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                     <input
                       type="tel"
                       value={editFormData.phone}
-                      onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
-                      className="w-full px-4 py-2 bg-white/5 border border-[#dba627]/20 rounded-lg text-white focus:outline-none focus:border-[#dba627] transition-colors"
+                      className="w-full px-4 py-2 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-400 cursor-not-allowed"
+                      disabled
                     />
+                    <p className="text-xs text-offwhite/40 mt-1">Phone number cannot be changed</p>
                   </div>
                   
                   <div>
@@ -422,6 +435,7 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                       onChange={(e) => setEditFormData({...editFormData, address: e.target.value})}
                       className="w-full px-4 py-2 bg-white/5 border border-[#dba627]/20 rounded-lg text-white focus:outline-none focus:border-[#dba627] transition-colors"
                       rows="3"
+                      placeholder="Your address"
                     />
                   </div>
                   
@@ -429,14 +443,14 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 px-4 py-2 bg-[#dba627] text-black font-medium rounded-lg hover:bg-[#dba627]/90 transition-colors disabled:opacity-50"
+                      className="flex-1 px-4 py-2 bg-[#dba627] text-black font-medium rounded-lg hover:bg-[#dba627]/90 transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       {loading ? "Saving..." : "Save Changes"}
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsEditing(false)}
-                      className="flex-1 px-4 py-2 bg-white/10 text-white font-medium rounded-lg hover:bg-white/20 transition-colors"
+                      className="flex-1 px-4 py-2 bg-white/10 text-white font-medium rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -497,7 +511,7 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 px-4 py-2 bg-[#dba627] text-black font-medium rounded-lg hover:bg-[#dba627]/90 transition-colors disabled:opacity-50"
+                      className="flex-1 px-4 py-2 bg-[#dba627] text-black font-medium rounded-lg hover:bg-[#dba627]/90 transition-colors disabled:opacity-50 cursor-pointer"
                     >
                       {loading ? "Changing..." : "Change Password"}
                     </button>
@@ -507,7 +521,7 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                         setShowChangePassword(false);
                         setPasswordError(null);
                       }}
-                      className="flex-1 px-4 py-2 bg-white/10 text-white font-medium rounded-lg hover:bg-white/20 transition-colors"
+                      className="flex-1 px-4 py-2 bg-white/10 text-white font-medium rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
                     >
                       Cancel
                     </button>
