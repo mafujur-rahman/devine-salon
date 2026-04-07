@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
@@ -13,6 +13,7 @@ import {
 } from 'react-icons/hi';
 import UpdateBranch from './UpdateBranch';
 import DeleteBranch from './DeleteBranch';
+import ChangeBranchManager from './ChangeBranchManager';
 
 const DisplayBranches = ({ refreshTrigger }) => {
     const [branches, setBranches] = useState([]);
@@ -22,12 +23,24 @@ const DisplayBranches = ({ refreshTrigger }) => {
 
     const API_BASE_URL = 'https://saloon.mrshakil.com/api';
 
+    const getAuthToken = () => {
+        return localStorage.getItem("token");
+    };
+
     const axiosInstance = axios.create({
         baseURL: API_BASE_URL,
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Token 73e4c3a1fbc67f4ebdae84b0d3a7e2b03539c514'
         }
+    });
+
+    // Add token to requests
+    axiosInstance.interceptors.request.use((config) => {
+        const token = getAuthToken();
+        if (token) {
+            config.headers.Authorization = `Token ${token}`;
+        }
+        return config;
     });
 
     useEffect(() => {
@@ -47,7 +60,7 @@ const DisplayBranches = ({ refreshTrigger }) => {
                 icon: 'error',
                 title: 'Error',
                 text: 'Failed to fetch branches',
-                confirmButtonColor: '#111111'
+                confirmButtonColor: '#dba627'
             });
         } finally {
             setLoading(false);
@@ -236,6 +249,10 @@ const DisplayBranches = ({ refreshTrigger }) => {
                         </button>
 
                         <div className="flex items-center gap-2">
+                            <ChangeBranchManager 
+                                branch={branch} 
+                                onManagerChanged={fetchBranches} 
+                            />
                             <UpdateBranch branch={branch} onBranchUpdated={fetchBranches} />
                             <DeleteBranch branchId={branch.id} onBranchDeleted={fetchBranches} />
                         </div>

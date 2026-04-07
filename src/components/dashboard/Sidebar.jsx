@@ -32,11 +32,10 @@ const roleMenus = {
         { name: "Appointments", icon: MdCalendarToday, path: "/dashboard/admin/appointments", hasSub: false },
         { name: "Services", icon: MdContentCut, path: "/dashboard/admin/services", hasSub: false },
         { name: "Staff", icon: MdPeopleOutline, path: "/dashboard/admin/staff", hasSub: false },
-        { name: "Customers", icon: MdPersonOutline, path: "/dashboard/admin/customers", hasSub: false },
         { name: "Branch", icon: MdQueue, path: "/dashboard/admin/branch", hasSub: false },
+        { name: "Packages", icon: MdInventory2, path: "/dashboard/admin/packages", hasSub: false },
+        { name: "Products", icon: MdShoppingBag, path: "/dashboard/admin/products", hasSub: false },
         { name: "Payments", icon: MdPayment, path: "/dashboard/admin/payments", hasSub: false },
-        { name: "Reports", icon: MdBarChart, path: "/dashboard/admin/reports", hasSub: false },
-        { name: "Inventory", icon: MdStore, path: "/dashboard/admin/inventory", hasSub: false },
     ],
     manager: [
         { name: "Dashboard", icon: MdOutlineGridView, path: "/dashboard/manager", hasSub: false },

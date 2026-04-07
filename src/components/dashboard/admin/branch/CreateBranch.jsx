@@ -23,12 +23,24 @@ const CreateBranch = ({ onBranchCreated }) => {
 
     const API_BASE_URL = 'https://saloon.mrshakil.com/api';
 
+    const getAuthToken = () => {
+        return localStorage.getItem("token");
+    };
+
     const axiosInstance = axios.create({
         baseURL: API_BASE_URL,
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Token 73e4c3a1fbc67f4ebdae84b0d3a7e2b03539c514'
         }
+    });
+
+    // Add token to requests
+    axiosInstance.interceptors.request.use((config) => {
+        const token = getAuthToken();
+        if (token) {
+            config.headers.Authorization = `Token ${token}`;
+        }
+        return config;
     });
 
     // Fetch staff members who have manager job titles
@@ -53,25 +65,39 @@ const CreateBranch = ({ onBranchCreated }) => {
 
             console.log('Manager Job Titles:', managerJobTitles);
 
-            setManagers(managerJobTitles);
+            // Now fetch staff members with these job titles
+            const staffPromises = managerJobTitles.map(async (job) => {
+                const staffResponse = await axiosInstance.get(`/staff/get-all-staff/?job_title=${job.id}`);
+                return staffResponse.data.data || staffResponse.data.staff || staffResponse.data.results || [];
+            });
+
+            const staffResults = await Promise.all(staffPromises);
+            const allStaff = staffResults.flat();
+            
+            // Remove duplicates by id
+            const uniqueStaff = Array.from(new Map(allStaff.map(s => [s.id, s])).values());
+            
+            setManagers(uniqueStaff);
         } catch (err) {
-            console.error('Error fetching manager job titles:', err);
+            console.error('Error fetching managers:', err);
             setManagers([]);
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
                 text: 'Failed to load manager options',
-                confirmButtonColor: '#111111'
+                confirmButtonColor: '#dba627'
             });
         } finally {
             setLoadingManagers(false);
         }
     };
 
-    const handleInputChange = (e) => setFormData({
-        ...formData,
-        [e.target.name]: e.target.value
-    });
+    const handleInputChange = (e) => {
+        setFormData({
+            ...formData,
+            [e.target.name]: e.target.value
+        });
+    };
 
     const resetForm = () => setFormData({
         name: '', address: '', city: '', phone: '', email: '',
@@ -82,6 +108,7 @@ const CreateBranch = ({ onBranchCreated }) => {
         e.preventDefault();
         setLoading(true);
         try {
+            // IMPORTANT: Send manager as integer ID, not object
             const payload = {
                 name: formData.name.trim(),
                 address: formData.address.trim(),
@@ -92,7 +119,7 @@ const CreateBranch = ({ onBranchCreated }) => {
                 closing_time: formData.closing_time,
                 gst_number: formData.gst_number.trim(),
                 tax_rate: formData.tax_rate ? parseFloat(formData.tax_rate) : null,
-                manager: formData.manager.id  
+                manager: parseInt(formData.manager)  // Ensure it's sent as integer
             };
 
             console.log('Sending payload:', payload);
@@ -108,17 +135,17 @@ const CreateBranch = ({ onBranchCreated }) => {
                     title: 'Success!',
                     text: 'Branch created successfully!',
                     background: '#fff',
-                    confirmButtonColor: '#111111'
+                    confirmButtonColor: '#dba627'
                 });
                 setShowCreateForm(false);
                 resetForm();
-                onBranchCreated();
+                if (onBranchCreated) onBranchCreated();
             } else {
                 Swal.fire({
                     icon: 'error',
                     title: 'Error',
                     text: result.message || 'Failed to create branch',
-                    confirmButtonColor: '#111111'
+                    confirmButtonColor: '#dba627'
                 });
             }
         } catch (error) {
@@ -127,11 +154,25 @@ const CreateBranch = ({ onBranchCreated }) => {
                 icon: 'error',
                 title: 'Error',
                 text: error.response?.data?.message || error.response?.data?.error || 'Failed to create branch',
-                confirmButtonColor: '#111111'
+                confirmButtonColor: '#dba627'
             });
         } finally {
             setLoading(false);
         }
+    };
+
+    // Helper function to get placeholder text based on field
+    const getPlaceholder = (field) => {
+        const placeholders = {
+            name: 'e.g., Andheri Salon, Bandra Beauty Studio',
+            city: 'e.g., Mumbai, Delhi, Bangalore, Chennai',
+            address: 'e.g., Shop No. 123, Linking Road, Andheri West, Mumbai - 400058',
+            phone: 'e.g., 9876543210 or 022-12345678',
+            email: 'e.g., branch@salon.com',
+            gst_number: 'e.g., 27ABCDE1234F1Z (15-digit GSTIN)',
+            tax_rate: 'e.g., 18 (GST percentage)'
+        };
+        return placeholders[field] || '';
     };
 
     return (
@@ -176,39 +217,151 @@ const CreateBranch = ({ onBranchCreated }) => {
                             <form onSubmit={handleCreateBranch}>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
-                                    {['name', 'city', 'address', 'phone', 'email', 'opening_time', 'closing_time', 'gst_number', 'tax_rate'].map((field) => (
-                                        <div key={field} className={field === 'address' ? 'md:col-span-2' : ''}>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                {field.replace('_', ' ')}
-                                                {!['address', 'gst_number', 'tax_rate'].includes(field) && ' *'}
-                                            </label>
+                                    {/* Branch Name */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                            Branch Name *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="name"
+                                            value={formData.name}
+                                            onChange={handleInputChange}
+                                            required
+                                            placeholder={getPlaceholder('name')}
+                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                        />
+                                    </div>
 
-                                            <input
-                                                type={
-                                                    field === 'email'
-                                                        ? 'email'
-                                                        : field === 'tax_rate'
-                                                            ? 'number'
-                                                            : field.includes('time')
-                                                                ? 'time'
-                                                                : 'text'
-                                                }
-                                                name={field}
-                                                value={formData[field]}
-                                                onChange={handleInputChange}
-                                                required={!['address', 'gst_number', 'tax_rate'].includes(field)}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
-                                                step={field === 'tax_rate' ? '0.01' : undefined}
-                                            />
-                                        </div>
-                                    ))}
+                                    {/* City */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                            City *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="city"
+                                            value={formData.city}
+                                            onChange={handleInputChange}
+                                            required
+                                            placeholder={getPlaceholder('city')}
+                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                        />
+                                    </div>
 
-                                    {/* Manager Select - Shows actual staff members with manager job titles */}
+                                    {/* Address */}
+                                    <div className="md:col-span-2">
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                            Address
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="address"
+                                            value={formData.address}
+                                            onChange={handleInputChange}
+                                            placeholder={getPlaceholder('address')}
+                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                        />
+                                    </div>
+
+                                    {/* Phone */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                            Phone Number *
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            name="phone"
+                                            value={formData.phone}
+                                            onChange={handleInputChange}
+                                            required
+                                            placeholder={getPlaceholder('phone')}
+                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                        />
+                                    </div>
+
+                                    {/* Email */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                            Email Address *
+                                        </label>
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            value={formData.email}
+                                            onChange={handleInputChange}
+                                            required
+                                            placeholder={getPlaceholder('email')}
+                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                        />
+                                    </div>
+
+                                    {/* Opening Time */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                            Opening Time *
+                                        </label>
+                                        <input
+                                            type="time"
+                                            name="opening_time"
+                                            value={formData.opening_time}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                        />
+                                    </div>
+
+                                    {/* Closing Time */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                            Closing Time *
+                                        </label>
+                                        <input
+                                            type="time"
+                                            name="closing_time"
+                                            value={formData.closing_time}
+                                            onChange={handleInputChange}
+                                            required
+                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                        />
+                                    </div>
+
+                                    {/* GST Number */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                            GST Number
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="gst_number"
+                                            value={formData.gst_number}
+                                            onChange={handleInputChange}
+                                            placeholder={getPlaceholder('gst_number')}
+                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                        />
+                                    </div>
+
+                                    {/* Tax Rate */}
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                            Tax Rate (%)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="tax_rate"
+                                            value={formData.tax_rate}
+                                            onChange={handleInputChange}
+                                            placeholder={getPlaceholder('tax_rate')}
+                                            step="0.01"
+                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                        />
+                                    </div>
+
+                                    {/* Manager Select */}
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                             Branch Manager *
                                         </label>
-
                                         <select
                                             name="manager"
                                             value={formData.manager}
@@ -220,7 +373,7 @@ const CreateBranch = ({ onBranchCreated }) => {
                                             <option value="">Select Branch Manager</option>
                                             {managers.map(manager => (
                                                 <option key={manager.id} value={manager.id}>
-                                                    {manager.name}
+                                                    {manager.name} - {manager.job_title_name}
                                                 </option>
                                             ))}
                                         </select>
