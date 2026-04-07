@@ -33,22 +33,17 @@ export default function BranchInfo() {
 
     const [branch, setBranch] = useState(null);
     const [loading, setLoading] = useState(false);
-    const [showEditForm, setShowEditForm] = useState(false);
-    const [formData, setFormData] = useState({
-        name: '',
-        address: '',
-        city: '',
-        phone: '',
-        email: '',
-        opening_time: '',
-        closing_time: '',
-        tax_rate: '',
-        gst_number: ''
+    const [stats, setStats] = useState({
+        totalStaff: 0,
+        totalServices: 0,
+        totalCustomers: 0
     });
+    const [statsLoading, setStatsLoading] = useState(true);
 
     useEffect(() => {
         checkAuth();
         fetchBranchInfo();
+        fetchStats();
     }, []);
 
     const checkAuth = () => {
@@ -72,17 +67,6 @@ export default function BranchInfo() {
             let branchData = data.data || data.branches || data.results || [];
             if (branchData.length > 0) {
                 setBranch(branchData[0]);
-                setFormData({
-                    name: branchData[0].name || '',
-                    address: branchData[0].address || '',
-                    city: branchData[0].city || '',
-                    phone: branchData[0].phone || '',
-                    email: branchData[0].email || '',
-                    opening_time: branchData[0].opening_time || '',
-                    closing_time: branchData[0].closing_time || '',
-                    tax_rate: branchData[0].tax_rate || '',
-                    gst_number: branchData[0].gst_number || ''
-                });
             }
         } catch (error) {
             console.error('Error fetching branch info:', error);
@@ -97,48 +81,36 @@ export default function BranchInfo() {
         }
     };
 
-    const handleUpdateBranch = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-
-        const payload = {
-            name: formData.name,
-            address: formData.address,
-            city: formData.city,
-            phone: formData.phone,
-            email: formData.email,
-            opening_time: formData.opening_time,
-            closing_time: formData.closing_time,
-            tax_rate: parseFloat(formData.tax_rate),
-            gst_number: formData.gst_number
-        };
-
+    const fetchStats = async () => {
+        setStatsLoading(true);
         try {
-            const result = await apiFetch(`/branch/update-branch/${branch.id}/`, {
-                method: 'PUT',
-                body: JSON.stringify(payload)
+            // Fetch staff count
+            const staffData = await apiFetch('/staff/get-all-staff/');
+            const totalStaff = staffData.data?.length || staffData.length || 0;
+            
+            // Fetch services count
+            const servicesData = await apiFetch('/service/services/');
+            const totalServices = servicesData.data?.length || servicesData.length || 0;
+            
+            // Fetch customers count
+            const customersData = await apiFetch('/users/customers/');
+            const totalCustomers = customersData.data?.length || customersData.length || 0;
+            
+            setStats({
+                totalStaff,
+                totalServices,
+                totalCustomers
             });
-
-            if (result.success) {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success!',
-                    text: 'Branch information updated successfully!',
-                    confirmButtonColor: '#dba627'
-                });
-                setShowEditForm(false);
-                fetchBranchInfo();
-            }
         } catch (error) {
-            console.error('Error updating branch:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: error.message || 'Failed to update branch information',
-                confirmButtonColor: '#dba627'
+            console.error('Error fetching stats:', error);
+            // Set default values if API calls fail
+            setStats({
+                totalStaff: 0,
+                totalServices: 0,
+                totalCustomers: 0
             });
         } finally {
-            setLoading(false);
+            setStatsLoading(false);
         }
     };
 
@@ -169,13 +141,6 @@ export default function BranchInfo() {
         } finally {
             setLoading(false);
         }
-    };
-
-    const handleInputChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
     };
 
     const formatTime = (timeString) => {
@@ -253,15 +218,6 @@ export default function BranchInfo() {
                                     Open Branch
                                 </>
                             )}
-                        </button>
-                        <button
-                            onClick={() => setShowEditForm(true)}
-                            className="bg-black text-white font-semibold py-2 px-5 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2 text-sm cursor-pointer"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            Edit Branch
                         </button>
                     </div>
                 </div>
@@ -392,10 +348,11 @@ export default function BranchInfo() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
                             </div>
-                            <span className="text-2xl font-bold text-gray-800">-</span>
                         </div>
                         <p className="text-sm font-medium text-gray-600">Total Staff</p>
-                        <p className="text-2xl font-bold text-gray-800 mt-1">Loading...</p>
+                        <p className="text-2xl font-bold text-gray-800 mt-1">
+                            {statsLoading ? 'Loading...' : stats.totalStaff}
+                        </p>
                     </div>
 
                     <div className="bg-gradient-to-br from-green-50 to-white rounded-2xl p-6 shadow-sm border border-green-100">
@@ -405,10 +362,11 @@ export default function BranchInfo() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                 </svg>
                             </div>
-                            <span className="text-2xl font-bold text-gray-800">-</span>
                         </div>
                         <p className="text-sm font-medium text-gray-600">Total Services</p>
-                        <p className="text-2xl font-bold text-gray-800 mt-1">Loading...</p>
+                        <p className="text-2xl font-bold text-gray-800 mt-1">
+                            {statsLoading ? 'Loading...' : stats.totalServices}
+                        </p>
                     </div>
 
                     <div className="bg-gradient-to-br from-purple-50 to-white rounded-2xl p-6 shadow-sm border border-purple-100">
@@ -418,185 +376,13 @@ export default function BranchInfo() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
                             </div>
-                            <span className="text-2xl font-bold text-gray-800">-</span>
                         </div>
                         <p className="text-sm font-medium text-gray-600">Total Customers</p>
-                        <p className="text-2xl font-bold text-gray-800 mt-1">Loading...</p>
+                        <p className="text-2xl font-bold text-gray-800 mt-1">
+                            {statsLoading ? 'Loading...' : stats.totalCustomers}
+                        </p>
                     </div>
                 </div>
-
-                {/* Edit Branch Form Modal */}
-                {showEditForm && (
-                    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-                        <div className="w-full max-w-3xl max-h-[90vh] overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-xl flex flex-col">
-                            {/* HEADER */}
-                            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-gray-900">
-                                        Edit Branch Information
-                                    </h2>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Update your branch details
-                                    </p>
-                                </div>
-                                <button
-                                    onClick={() => setShowEditForm(false)}
-                                    className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-
-                            {/* BODY */}
-                            <div className="overflow-y-auto px-6 py-5">
-                                <form onSubmit={handleUpdateBranch}>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Branch Name *
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="name"
-                                                value={formData.name}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Branch Name"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Address *
-                                            </label>
-                                            <textarea
-                                                name="address"
-                                                value={formData.address}
-                                                onChange={handleInputChange}
-                                                rows="2"
-                                                required
-                                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Street address"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                City *
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="city"
-                                                value={formData.city}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="City"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Phone *
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Phone number"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Email
-                                            </label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={formData.email}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Email address"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                GST Number
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="gst_number"
-                                                value={formData.gst_number}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="GST Number"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Opening Time *
-                                            </label>
-                                            <input
-                                                type="time"
-                                                name="opening_time"
-                                                value={formData.opening_time}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Closing Time *
-                                            </label>
-                                            <input
-                                                type="time"
-                                                name="closing_time"
-                                                value={formData.closing_time}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Tax Rate (%)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                name="tax_rate"
-                                                value={formData.tax_rate}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="0.00"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* FOOTER */}
-                                    <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowEditForm(false)}
-                                            className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={loading}
-                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
-                                        >
-                                            {loading ? 'Saving...' : 'Save Changes'}
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         </DashboardLayout>
     );

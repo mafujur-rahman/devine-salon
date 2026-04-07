@@ -1,4 +1,3 @@
-// app/dashboard/manager/page.jsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,6 +10,11 @@ import {
     MdEvent,
     MdPendingActions,
     MdTaskAlt,
+    MdShowChart,
+    MdTrendingUp,
+    MdCalendarToday,
+    MdWork,
+    MdStar
 } from "react-icons/md";
 import DashboardLayout from "@/app/page";
 
@@ -42,6 +46,11 @@ export default function ManagerDashboard() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [selectedStaff, setSelectedStaff] = useState(null);
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [monthlyReport, setMonthlyReport] = useState(null);
+    const [generatingReport, setGeneratingReport] = useState(false);
 
     // State for dashboard data
     const [stats, setStats] = useState({
@@ -166,8 +175,41 @@ export default function ManagerDashboard() {
         return revenue;
     }
 
+    async function generateMonthlyReport() {
+        if (!selectedStaff) {
+            return;
+        }
+
+        setGeneratingReport(true);
+        try {
+            const response = await apiFetch("/staff/generate-monthly-report/", {
+                method: "POST",
+                body: JSON.stringify({
+                    staff_id: selectedStaff,
+                    month: selectedMonth,
+                    year: selectedYear
+                })
+            });
+            
+            if (response.success) {
+                setMonthlyReport(response.data);
+            }
+        } catch (err) {
+            console.error("Failed to generate monthly report:", err);
+        } finally {
+            setGeneratingReport(false);
+        }
+    }
+
     const formatCurrency = (amount) => {
-        return `$${amount.toLocaleString()}`;
+        return `$${parseFloat(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    const getTopPerformers = () => {
+        return staffPerformance
+            .filter(staff => staff.completed_work > 0)
+            .sort((a, b) => b.total_revenue - a.total_revenue)
+            .slice(0, 5);
     };
 
     if (loading) {
@@ -229,26 +271,11 @@ export default function ManagerDashboard() {
         },
     ];
 
-    const topPerformingStaff = staffPerformance
-        .sort((a, b) => b.completed_appointments - a.completed_appointments)
-        .slice(0, 5)
-        .map((staff) => ({
-            name: staff.staff_name,
-            performance: Math.min(100, Math.round((staff.completed_appointments / 50) * 100)),
-            tasks: staff.completed_appointments,
-        }));
-
-    const displayStaffPerformance = topPerformingStaff.length > 0
-        ? topPerformingStaff
-        : staffList.slice(0, 5).map((staff) => ({
-            name: staff.name,
-            performance: 50,
-            tasks: 0,
-        }));
+    const topPerformingStaff = getTopPerformers();
 
     return (
         <DashboardLayout>
-            <div>
+            <div className="space-y-6">
                 {/* Page Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-800 mb-2">
@@ -258,7 +285,7 @@ export default function ManagerDashboard() {
                 </div>
 
                 {/* Top Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {topStats.map((stat, index) => {
                         const Icon = stat.icon;
                         return (
@@ -305,33 +332,224 @@ export default function ManagerDashboard() {
                     })}
                 </div>
 
+                {/* Staff Performance Report Section */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-gradient-to-r from-[#dba627]/10 to-transparent px-6 py-4 border-b border-gray-100">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                    <MdShowChart className="text-[#dba627]" />
+                                    Staff Performance Report
+                                </h2>
+                                <p className="text-sm text-gray-500 mt-1">Detailed performance metrics for all staff members</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <select
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                >
+                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                                        <option key={month} value={month}>
+                                            {new Date(2000, month - 1, 1).toLocaleString('default', { month: 'long' })}
+                                        </option>
+                                    ))}
+                                </select>
+                                <select
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                >
+                                    {[2024, 2025, 2026].map(year => (
+                                        <option key={year} value={year}>{year}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        {/* Staff Selection and Report Generation */}
+                        <div className="mb-6 flex gap-4 items-end">
+                            <div className="flex-1">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Select Staff Member
+                                </label>
+                                <select
+                                    value={selectedStaff || ""}
+                                    onChange={(e) => setSelectedStaff(parseInt(e.target.value))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                >
+                                    <option value="">Choose a staff member...</option>
+                                    {staffPerformance.map(staff => (
+                                        <option key={staff.staff_id} value={staff.staff_id}>
+                                            {staff.staff_name} - {staff.job_title}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <button
+                                onClick={generateMonthlyReport}
+                                disabled={!selectedStaff || generatingReport}
+                                className="px-6 py-2 bg-[#dba627] text-white rounded-lg font-semibold hover:bg-[#c49520] transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {generatingReport ? 'Generating...' : 'Generate Report'}
+                            </button>
+                        </div>
+
+                        {/* Monthly Report Display */}
+                        {monthlyReport && (
+                            <div className="mt-6 bg-gradient-to-br from-gray-50 to-white rounded-xl p-6 border border-gray-200">
+                                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <MdCalendarToday className="text-[#dba627]" />
+                                    Report for {monthlyReport.staff_name} - {new Date(2000, monthlyReport.month - 1, 1).toLocaleString('default', { month: 'long' })} {monthlyReport.year}
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                                        <p className="text-xs text-gray-500 mb-1">Completed Work</p>
+                                        <p className="text-2xl font-bold text-gray-800">{monthlyReport.completed_work}</p>
+                                        <p className="text-xs text-green-600 mt-1">↑ 12% vs last month</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                                        <p className="text-xs text-gray-500 mb-1">Total Revenue</p>
+                                        <p className="text-2xl font-bold text-[#dba627]">{formatCurrency(monthlyReport.total_revenue)}</p>
+                                        <p className="text-xs text-green-600 mt-1">↑ 8% vs last month</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                                        <p className="text-xs text-gray-500 mb-1">Estimated Commission</p>
+                                        <p className="text-2xl font-bold text-gray-800">{formatCurrency(monthlyReport.estimated_commission)}</p>
+                                        <p className="text-xs text-gray-500 mt-1">@{monthlyReport.commission_percentage}% rate</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                                        <p className="text-xs text-gray-500 mb-1">Estimated Salary</p>
+                                        <p className="text-2xl font-bold text-gray-800">{formatCurrency(monthlyReport.estimated_salary)}</p>
+                                        <p className="text-xs text-gray-500 mt-1">Base: {formatCurrency(monthlyReport.base_salary)}</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                                        <p className="text-xs text-gray-500 mb-1">Service Revenue</p>
+                                        <p className="text-lg font-semibold text-gray-800">{formatCurrency(monthlyReport.service_revenue)}</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                                        <p className="text-xs text-gray-500 mb-1">Package Revenue</p>
+                                        <p className="text-lg font-semibold text-gray-800">{formatCurrency(monthlyReport.package_revenue)}</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                                        <p className="text-xs text-gray-500 mb-1">Product Revenue</p>
+                                        <p className="text-lg font-semibold text-gray-800">{formatCurrency(monthlyReport.product_revenue)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Staff Performance Table */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[#dba627]/5 to-transparent">
+                        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                            <MdWork className="text-[#dba627]" />
+                            All Staff Performance Overview
+                        </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Staff Name</th>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Job Title</th>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Completed Work</th>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Revenue</th>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Commission</th>
+                                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Performance</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                                {staffPerformance.map((staff, idx) => {
+                                    const performancePercent = staff.completed_work > 0 
+                                        ? Math.min(100, Math.round((staff.completed_work / 50) * 100))
+                                        : 0;
+                                    return (
+                                        <tr key={idx} className="hover:bg-gray-50 transition">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 bg-[#dba627]/10 rounded-full flex items-center justify-center">
+                                                        <MdStar className="text-[#dba627]" size={14} />
+                                                    </div>
+                                                    <span className="font-medium text-gray-900">{staff.staff_name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{staff.job_title}</td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm font-semibold text-gray-900">{staff.completed_work}</span>
+                                                    <span className="text-xs text-gray-500">({staff.completed_appointments} apts)</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="text-sm font-semibold text-[#dba627]">{formatCurrency(staff.total_revenue)}</span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <span className="text-sm text-gray-700">{formatCurrency(staff.estimated_commission)}</span>
+                                                <span className="text-xs text-gray-500 ml-1">({staff.commission_percentage}%)</span>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex-1 max-w-[100px]">
+                                                        <div className="w-full bg-gray-100 h-2 rounded-full">
+                                                            <div 
+                                                                className="h-2 rounded-full bg-[#dba627] transition-all"
+                                                                style={{ width: `${performancePercent}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs font-semibold text-gray-600">{performancePercent}%</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                        {staffPerformance.length === 0 && (
+                            <div className="text-center py-12">
+                                <p className="text-gray-400">No staff performance data available</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
                 {/* Bottom Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    {/* Staff Performance */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Top Performers Chart */}
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4">Staff Performance</h3>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            <MdTrendingUp className="text-[#dba627]" />
+                            Top Performing Staff
+                        </h3>
                         <div className="space-y-4">
-                            {displayStaffPerformance.map((staff, i) => (
+                            {topPerformingStaff.map((staff, i) => (
                                 <div key={i}>
                                     <div className="flex justify-between text-sm mb-1">
-                                        <span className="font-medium text-gray-700">{staff.name}</span>
+                                        <span className="font-medium text-gray-700">{staff.staff_name}</span>
                                         <div className="flex gap-4">
-                                            <span className="text-gray-500">{staff.tasks} services</span>
-                                            <span className="text-[#dba627] font-semibold">{staff.performance}%</span>
+                                            <span className="text-gray-500">{staff.completed_work} services</span>
+                                            <span className="text-[#dba627] font-semibold">{formatCurrency(staff.total_revenue)}</span>
                                         </div>
                                     </div>
                                     <div className="w-full bg-gray-100 h-2 rounded-full">
                                         <div
                                             className="h-2 rounded-full bg-[#dba627]"
-                                            style={{ width: `${staff.performance}%` }}
+                                            style={{ width: `${Math.min(100, (staff.total_revenue / 50000) * 100)}%` }}
                                         />
                                     </div>
                                 </div>
                             ))}
+                            {topPerformingStaff.length === 0 && (
+                                <p className="text-gray-400 text-sm text-center">No performance data available yet</p>
+                            )}
                         </div>
-                        {staffPerformance.length === 0 && (
-                            <p className="text-gray-400 text-sm text-center mt-4">No performance data available yet</p>
-                        )}
                     </div>
 
                     {/* Weekly Revenue Trend */}
@@ -344,7 +562,7 @@ export default function ManagerDashboard() {
                                 return (
                                     <div key={i} className="flex flex-col items-center flex-1">
                                         <div
-                                            className="w-full rounded-md bg-[#dba627]/80 transition-all hover:bg-[#dba627]"
+                                            className="w-full rounded-md bg-[#dba627]/80 transition-all hover:bg-[#dba627] cursor-pointer"
                                             style={{ height: `${height}%`, minHeight: "4px" }}
                                         />
                                         <span className="text-xs text-gray-500 mt-2">{data.day}</span>

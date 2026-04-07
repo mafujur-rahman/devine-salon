@@ -34,7 +34,6 @@ export default function Products() {
     const [activeTab, setActiveTab] = useState('product');
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
-    const [branches, setBranches] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
@@ -50,15 +49,13 @@ export default function Products() {
         selling_price: '',
         cost_price: '',
         stock_qty: '',
-        low_stock_alert: '',
-        branch: ''
+        low_stock_alert: ''
     });
 
     useEffect(() => {
         checkAuth();
         fetchProducts();
         fetchCategories();
-        fetchBranches();
     }, []);
 
     const checkAuth = () => {
@@ -107,16 +104,6 @@ export default function Products() {
             setCategories(categoriesData);
         } catch (error) {
             console.error('Error fetching categories:', error);
-        }
-    };
-
-    const fetchBranches = async () => {
-        try {
-            const data = await apiFetch('/branches/get-all-branches/');
-            let branchesData = data.data || data.branches || data.results || [];
-            setBranches(branchesData);
-        } catch (error) {
-            console.error('Error fetching branches:', error);
         }
     };
 
@@ -270,8 +257,7 @@ export default function Products() {
                 selling_price: parseFloat(formData.selling_price),
                 cost_price: parseFloat(formData.cost_price),
                 stock_qty: parseInt(formData.stock_qty),
-                low_stock_alert: parseInt(formData.low_stock_alert),
-                branch: parseInt(formData.branch)
+                low_stock_alert: parseInt(formData.low_stock_alert)
             };
 
             const result = await apiFetch('/product/create-product/', {
@@ -316,8 +302,7 @@ export default function Products() {
                 selling_price: parseFloat(formData.selling_price),
                 cost_price: parseFloat(formData.cost_price),
                 stock_qty: parseInt(formData.stock_qty),
-                low_stock_alert: parseInt(formData.low_stock_alert),
-                branch: parseInt(formData.branch)
+                low_stock_alert: parseInt(formData.low_stock_alert)
             };
 
             const result = await apiFetch(`/product/update-product/${editingProduct.id}/`, {
@@ -417,8 +402,7 @@ export default function Products() {
             selling_price: product.selling_price,
             cost_price: product.cost_price,
             stock_qty: product.stock_qty,
-            low_stock_alert: product.low_stock_alert,
-            branch: product.branch
+            low_stock_alert: product.low_stock_alert
         });
         setShowCreateForm(true);
     };
@@ -437,8 +421,7 @@ export default function Products() {
             selling_price: '',
             cost_price: '',
             stock_qty: '',
-            low_stock_alert: '',
-            branch: ''
+            low_stock_alert: ''
         });
     };
 
@@ -458,11 +441,6 @@ export default function Products() {
     const getCategoryName = (categoryId) => {
         const category = categories.find(c => c.id === categoryId);
         return category ? category.name : `ID: ${categoryId}`;
-    };
-
-    const getBranchName = (branchId) => {
-        const branch = branches.find(b => b.id === branchId);
-        return branch ? branch.name : `ID: ${branchId}`;
     };
 
     return (
@@ -567,7 +545,7 @@ export default function Products() {
                                     value={newCategoryName}
                                     onChange={(e) => setNewCategoryName(e.target.value)}
                                     className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                    placeholder="e.g., Hair Care, Skin Care"
+                                    placeholder="e.g., Hair Care, Skin Care, Beauty Products"
                                     onKeyPress={(e) => {
                                         if (e.key === 'Enter') {
                                             editingCategory ? handleUpdateCategory() : handleCreateCategory();
@@ -638,7 +616,7 @@ export default function Products() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="e.g., Shampoo X"
+                                                placeholder="e.g., Ayurvedic Hair Oil, Aloe Vera Gel"
                                             />
                                         </div>
 
@@ -653,7 +631,7 @@ export default function Products() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="e.g., BrandY"
+                                                placeholder="e.g., Patanjali, Himalaya, Lotus"
                                             />
                                         </div>
 
@@ -679,27 +657,7 @@ export default function Products() {
 
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Branch *
-                                            </label>
-                                            <select
-                                                name="branch"
-                                                value={formData.branch}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="">Select Branch</option>
-                                                {branches.map(branch => (
-                                                    <option key={branch.id} value={branch.id}>
-                                                        {branch.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Selling Price (BDT) *
+                                                Selling Price (₹) *
                                             </label>
                                             <input
                                                 type="number"
@@ -709,13 +667,13 @@ export default function Products() {
                                                 required
                                                 step="0.01"
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="1200.00"
+                                                placeholder="e.g., 499.00"
                                             />
                                         </div>
 
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Cost Price (BDT) *
+                                                Cost Price (₹) *
                                             </label>
                                             <input
                                                 type="number"
@@ -725,7 +683,7 @@ export default function Products() {
                                                 required
                                                 step="0.01"
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="800.00"
+                                                placeholder="e.g., 350.00"
                                             />
                                         </div>
 
@@ -740,7 +698,7 @@ export default function Products() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="50"
+                                                placeholder="e.g., 100"
                                             />
                                         </div>
 
@@ -755,7 +713,7 @@ export default function Products() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="5"
+                                                placeholder="e.g., 10"
                                             />
                                         </div>
                                     </div>
@@ -831,10 +789,6 @@ export default function Products() {
                                         <p className="text-sm font-semibold text-gray-900">{getCategoryName(selectedProduct.category)}</p>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Branch</label>
-                                        <p className="text-sm text-gray-900">{getBranchName(selectedProduct.branch)}</p>
-                                    </div>
-                                    <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Stock Status</label>
                                         <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${getStockStatus(selectedProduct.stock_qty, selectedProduct.low_stock_alert).color}`}>
                                             {getStockStatus(selectedProduct.stock_qty, selectedProduct.low_stock_alert).text}
@@ -848,11 +802,11 @@ export default function Products() {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Selling Price</label>
-                                        <p className="text-xl font-bold text-[#dba627]">৳{selectedProduct.selling_price}</p>
+                                        <p className="text-xl font-bold text-[#dba627]">₹{selectedProduct.selling_price}</p>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Cost Price</label>
-                                        <p className="text-sm font-semibold text-gray-900">৳{selectedProduct.cost_price}</p>
+                                        <p className="text-sm font-semibold text-gray-900">₹{selectedProduct.cost_price}</p>
                                     </div>
                                 </div>
                             </div>
@@ -892,7 +846,6 @@ export default function Products() {
                                             <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
                                             <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Brand</th>
                                             <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</th>
                                             <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
                                             <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock</th>
                                             <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
@@ -919,10 +872,7 @@ export default function Products() {
                                                         <span className="text-sm text-gray-700">{getCategoryName(product.category)}</span>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <span className="text-sm text-gray-700">{getBranchName(product.branch)}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm font-bold text-[#dba627]">৳{product.selling_price}</span>
+                                                        <span className="text-sm font-bold text-[#dba627]">₹{product.selling_price}</span>
                                                     </td>
                                                     <td className="px-6 py-4">
                                                         <span className={`text-sm font-semibold ${product.stock_qty <= product.low_stock_alert ? 'text-red-600' : 'text-gray-900'}`}>

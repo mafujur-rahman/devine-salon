@@ -4,46 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import DashboardLayout from "@/app/page";
+import axios from "axios";
 
 const API_BASE = "https://saloon.mrshakil.com/api";
-
-// Helper for authenticated requests
-async function apiFetch(endpoint, options = {}) {
-    const token = localStorage.getItem("token");
-
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Token ${token}`,
-            ...options.headers,
-        },
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "API request failed");
-    }
-
-    return response.json();
-}
-
-// Helper function to safely extract minutes from duration
-const getDurationMinutes = (duration) => {
-    if (!duration) return 0;
-    if (typeof duration === 'number') return duration;
-    if (typeof duration === 'string') {
-        if (duration.includes(':')) {
-            const parts = duration.split(':');
-            if (parts.length >= 2) {
-                return parseInt(parts[1]);
-            }
-        }
-        const parsed = parseInt(duration);
-        if (!isNaN(parsed)) return parsed;
-    }
-    return 0;
-};
 
 export default function Appointments() {
     const router = useRouter();
@@ -68,7 +31,6 @@ export default function Appointments() {
         whatsapp: '',
         address: '',
         gender: 'male',
-        branch: '',
         staff: '',
         date: '',
         time: '',
@@ -77,7 +39,15 @@ export default function Appointments() {
         items: []
     });
     const [selectedServices, setSelectedServices] = useState([]);
-    const [serviceInput, setServiceInput] = useState({ service: '' });
+    const [serviceInput, setServiceInput] = useState('');
+
+    // Axios interceptor for auth token
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+        if (token) {
+            axios.defaults.headers.common['Authorization'] = `Token ${token}`;
+        }
+    }, []);
 
     useEffect(() => {
         checkAuth();
@@ -92,11 +62,7 @@ export default function Appointments() {
         const token = localStorage.getItem("token");
         const role = localStorage.getItem("role");
 
-        if (!token) {
-            router.push("/login");
-        }
-
-        if (role !== "manager") {
+        if (!token || role !== "manager") {
             router.push("/login");
         }
     };
@@ -104,15 +70,15 @@ export default function Appointments() {
     const fetchAppointments = async () => {
         setLoading(true);
         try {
-            const data = await apiFetch('/appointments/get-all-appointments/');
-            let appointmentsData = data.data || data.appointments || data.results || [];
+            const response = await axios.get(`${API_BASE}/appointments/get-all-appointments/`);
+            const appointmentsData = response.data.data || response.data.appointments || response.data.results || [];
             setAppointments(appointmentsData);
         } catch (error) {
             console.error('Error fetching appointments:', error);
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: 'Failed to fetch appointments',
+                text: error.response?.data?.message || 'Failed to fetch appointments',
                 confirmButtonColor: '#dba627'
             });
         } finally {
@@ -122,8 +88,8 @@ export default function Appointments() {
 
     const fetchServices = async () => {
         try {
-            const data = await apiFetch('/service/services/');
-            setServices(data.data || []);
+            const response = await axios.get(`${API_BASE}/service/services/`);
+            setServices(response.data.data || []);
         } catch (error) {
             console.error('Error fetching services:', error);
         }
@@ -131,8 +97,8 @@ export default function Appointments() {
 
     const fetchStaff = async () => {
         try {
-            const data = await apiFetch('/users/staff/');
-            setStaff(data.data || []);
+            const response = await axios.get(`${API_BASE}/users/staff/`);
+            setStaff(response.data.data || []);
         } catch (error) {
             console.error('Error fetching staff:', error);
         }
@@ -140,8 +106,8 @@ export default function Appointments() {
 
     const fetchBranches = async () => {
         try {
-            const data = await apiFetch('/branches/get-all-branches/');
-            let branchesData = data.data || data.branches || data.results || [];
+            const response = await axios.get(`${API_BASE}/branches/get-all-branches/`);
+            const branchesData = response.data.data || response.data.branches || response.data.results || [];
             setBranches(branchesData);
         } catch (error) {
             console.error('Error fetching branches:', error);
@@ -150,8 +116,9 @@ export default function Appointments() {
 
     const fetchCustomers = async () => {
         try {
-            const data = await apiFetch('/users/customers/');
-            setCustomers(data.data || []);
+            const response = await axios.get(`${API_BASE}/users/customers/`);
+            console.log("Customers fetched:", response.data);
+            setCustomers(response.data.data || []);
         } catch (error) {
             console.error('Error fetching customers:', error);
         }
@@ -159,13 +126,23 @@ export default function Appointments() {
 
     const handleCreateAppointment = async (e) => {
         e.preventDefault();
+        
+        if (selectedServices.length === 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Validation Error',
+                text: 'Please add at least one service to the appointment',
+                confirmButtonColor: '#dba627'
+            });
+            return;
+        }
+        
         setLoading(true);
 
         let payload;
         if (customerType === 'existing') {
             payload = {
                 customer: parseInt(formData.customer),
-                branch: parseInt(formData.branch),
                 staff: parseInt(formData.staff),
                 date: formData.date,
                 time: formData.time,
@@ -175,7 +152,6 @@ export default function Appointments() {
             };
         } else {
             payload = {
-                branch: parseInt(formData.branch),
                 staff: parseInt(formData.staff),
                 date: formData.date,
                 time: formData.time,
@@ -193,12 +169,9 @@ export default function Appointments() {
         }
 
         try {
-            const result = await apiFetch('/appointment/create-appointment/', {
-                method: 'POST',
-                body: JSON.stringify(payload)
-            });
-
-            if (result.success) {
+            const response = await axios.post(`${API_BASE}/appointment/create-appointment/`, payload);
+            
+            if (response.data.success) {
                 Swal.fire({
                     icon: 'success',
                     title: 'Success!',
@@ -214,7 +187,7 @@ export default function Appointments() {
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: error.message || 'Failed to create appointment',
+                text: error.response?.data?.message || 'Failed to create appointment',
                 confirmButtonColor: '#dba627'
             });
         } finally {
@@ -226,12 +199,9 @@ export default function Appointments() {
         e.preventDefault();
         setLoading(true);
         try {
-            const result = await apiFetch(`/appointment/${selectedAppointment.id}/update-status/`, {
-                method: 'PUT',
-                body: JSON.stringify(statusUpdateData)
-            });
-
-            if (result.success) {
+            const response = await axios.put(`${API_BASE}/appointment/${selectedAppointment.id}/update-status/`, statusUpdateData);
+            
+            if (response.data.success) {
                 Swal.fire({
                     icon: 'success',
                     title: 'Success!',
@@ -249,7 +219,7 @@ export default function Appointments() {
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: error.message || 'Failed to update status',
+                text: error.response?.data?.message || 'Failed to update status',
                 confirmButtonColor: '#dba627'
             });
         } finally {
@@ -260,12 +230,9 @@ export default function Appointments() {
     const handleUpdateAppointment = async (updateData) => {
         setLoading(true);
         try {
-            const result = await apiFetch(`/appointment/update-appointment/${selectedAppointment.id}/`, {
-                method: 'PUT',
-                body: JSON.stringify(updateData)
-            });
-
-            if (result.success) {
+            const response = await axios.put(`${API_BASE}/appointment/update-appointment/${selectedAppointment.id}/`, updateData);
+            
+            if (response.data.success) {
                 Swal.fire({
                     icon: 'success',
                     title: 'Success!',
@@ -280,7 +247,7 @@ export default function Appointments() {
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: error.message || 'Failed to update appointment',
+                text: error.response?.data?.message || 'Failed to update appointment',
                 confirmButtonColor: '#dba627'
             });
         } finally {
@@ -302,11 +269,9 @@ export default function Appointments() {
         if (result.isConfirmed) {
             setLoading(true);
             try {
-                const data = await apiFetch(`/appointment/delete-appointment/${appointmentId}/`, {
-                    method: 'DELETE'
-                });
-
-                if (data.success) {
+                const response = await axios.delete(`${API_BASE}/appointment/delete-appointment/${appointmentId}/`);
+                
+                if (response.data.success) {
                     Swal.fire({
                         icon: 'success',
                         title: 'Deleted!',
@@ -320,7 +285,7 @@ export default function Appointments() {
                 Swal.fire({
                     icon: 'error',
                     title: 'Error',
-                    text: error.message || 'Failed to delete appointment',
+                    text: error.response?.data?.message || 'Failed to delete appointment',
                     confirmButtonColor: '#dba627'
                 });
             } finally {
@@ -332,8 +297,8 @@ export default function Appointments() {
     const fetchAppointmentDetails = async (appointmentId) => {
         setLoading(true);
         try {
-            const data = await apiFetch(`/appointment/${appointmentId}/`);
-            setSelectedAppointment(data.data);
+            const response = await axios.get(`${API_BASE}/appointment/${appointmentId}/`);
+            setSelectedAppointment(response.data.data);
             setShowDetailsModal(true);
         } catch (error) {
             console.error('Error fetching appointment details:', error);
@@ -349,24 +314,42 @@ export default function Appointments() {
     };
 
     const addService = () => {
-        if (serviceInput.service) {
-            const service = services.find(s => s.id === parseInt(serviceInput.service));
+        if (serviceInput) {
+            const service = services.find(s => s.id === parseInt(serviceInput));
             if (service) {
-                setSelectedServices([...selectedServices, {
+                // Check if service already added
+                if (selectedServices.some(s => s.service === service.id)) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Duplicate Service',
+                        text: 'This service has already been added',
+                        confirmButtonColor: '#dba627'
+                    });
+                    return;
+                }
+                
+                const newService = {
                     service: service.id,
                     service_name: service.name,
-                    duration: getDurationMinutes(service.duration),
+                    duration: service.duration || 0,
                     price: service.price
-                }]);
-                setServiceInput({ service: '' });
+                };
+                
+                setSelectedServices([...selectedServices, newService]);
+                setServiceInput(''); // Reset the select input
             }
+        } else {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No Service Selected',
+                text: 'Please select a service from the dropdown',
+                confirmButtonColor: '#dba627'
+            });
         }
     };
 
-    const removeService = (index) => {
-        const newServices = [...selectedServices];
-        newServices.splice(index, 1);
-        setSelectedServices(newServices);
+    const removeService = (indexToRemove) => {
+        setSelectedServices(selectedServices.filter((_, index) => index !== indexToRemove));
     };
 
     const resetForm = () => {
@@ -379,7 +362,6 @@ export default function Appointments() {
             whatsapp: '',
             address: '',
             gender: 'male',
-            branch: '',
             staff: '',
             date: '',
             time: '',
@@ -389,6 +371,7 @@ export default function Appointments() {
         });
         setSelectedServices([]);
         setCustomerType('existing');
+        setServiceInput('');
     };
 
     const handleInputChange = (e) => {
@@ -424,14 +407,30 @@ export default function Appointments() {
             showCancelButton: true,
             confirmButtonColor: '#dba627',
             cancelButtonColor: '#333',
-            confirmButtonText: 'Update',
-            inputAttributes: {
-                'aria-label': 'Type your notes here'
-            }
+            confirmButtonText: 'Update'
         });
 
         if (notes !== undefined) {
             await handleUpdateAppointment({ notes });
+        }
+    };
+
+    const getDurationMinutes = (duration) => {
+        if (!duration) return 0;
+        if (typeof duration === 'number') return duration;
+        if (typeof duration === 'string') {
+            const parsed = parseInt(duration);
+            if (!isNaN(parsed)) return parsed;
+        }
+        return 0;
+    };
+
+    // Check if form is valid for submission
+    const isFormValid = () => {
+        if (customerType === 'existing') {
+            return formData.customer && formData.staff && formData.date && formData.time && selectedServices.length > 0;
+        } else {
+            return formData.phone && formData.first_name && formData.staff && formData.date && formData.time && selectedServices.length > 0;
         }
     };
 
@@ -446,10 +445,6 @@ export default function Appointments() {
                         </h1>
                         <p className="text-gray-500 mt-1">Manage all appointments</p>
                     </div>
-                </div>
-
-                {/* Create Appointment Button */}
-                <div className="flex justify-end mb-6">
                     <button
                         onClick={() => {
                             resetForm();
@@ -536,7 +531,7 @@ export default function Appointments() {
                                                     className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                 >
                                                     <option value="">Select Customer</option>
-                                                    {customers.map(customer => (
+                                                    {customers && customers.map(customer => (
                                                         <option key={customer.id} value={customer.id}>
                                                             {customer.first_name} {customer.last_name} - {customer.phone}
                                                         </option>
@@ -547,7 +542,7 @@ export default function Appointments() {
                                             <>
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                        Phone *
+                                                        Phone Number *
                                                     </label>
                                                     <input
                                                         type="tel"
@@ -556,7 +551,7 @@ export default function Appointments() {
                                                         onChange={handleInputChange}
                                                         required
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="017XXXXXXXX"
+                                                        placeholder="9876543210"
                                                     />
                                                 </div>
                                                 <div>
@@ -570,7 +565,7 @@ export default function Appointments() {
                                                         onChange={handleInputChange}
                                                         required
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="John"
+                                                        placeholder="Rahul"
                                                     />
                                                 </div>
                                                 <div>
@@ -583,12 +578,12 @@ export default function Appointments() {
                                                         value={formData.last_name}
                                                         onChange={handleInputChange}
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="Doe"
+                                                        placeholder="Sharma"
                                                     />
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                        Email
+                                                        Email Address
                                                     </label>
                                                     <input
                                                         type="email"
@@ -596,12 +591,12 @@ export default function Appointments() {
                                                         value={formData.email}
                                                         onChange={handleInputChange}
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="customer@example.com"
+                                                        placeholder="rahul.sharma@example.com"
                                                     />
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                        WhatsApp
+                                                        WhatsApp Number
                                                     </label>
                                                     <input
                                                         type="tel"
@@ -609,7 +604,7 @@ export default function Appointments() {
                                                         value={formData.whatsapp}
                                                         onChange={handleInputChange}
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="017XXXXXXXX"
+                                                        placeholder="9876543210"
                                                     />
                                                 </div>
                                                 <div>
@@ -637,7 +632,7 @@ export default function Appointments() {
                                                         onChange={handleInputChange}
                                                         rows="2"
                                                         className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="Customer address"
+                                                        placeholder="Enter customer address"
                                                     />
                                                 </div>
                                             </>
@@ -646,24 +641,7 @@ export default function Appointments() {
                                         {/* Appointment Details */}
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Branch *
-                                            </label>
-                                            <select
-                                                name="branch"
-                                                value={formData.branch}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="">Select Branch</option>
-                                                {branches.map(branch => (
-                                                    <option key={branch.id} value={branch.id}>{branch.name}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Staff *
+                                                Staff Member *
                                             </label>
                                             <select
                                                 name="staff"
@@ -673,7 +651,7 @@ export default function Appointments() {
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                             >
                                                 <option value="">Select Staff</option>
-                                                {staff.map(staffMember => (
+                                                {staff && staff.map(staffMember => (
                                                     <option key={staffMember.id} value={staffMember.id}>
                                                         {staffMember.name || `${staffMember.first_name} ${staffMember.last_name}`}
                                                     </option>
@@ -682,7 +660,7 @@ export default function Appointments() {
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Date *
+                                                Appointment Date *
                                             </label>
                                             <input
                                                 type="date"
@@ -695,7 +673,7 @@ export default function Appointments() {
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Time *
+                                                Appointment Time *
                                             </label>
                                             <input
                                                 type="time"
@@ -723,7 +701,7 @@ export default function Appointments() {
                                         </div>
                                         <div className="md:col-span-2">
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Notes
+                                                Additional Notes
                                             </label>
                                             <textarea
                                                 name="notes"
@@ -731,56 +709,66 @@ export default function Appointments() {
                                                 onChange={handleInputChange}
                                                 rows="2"
                                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Additional notes..."
+                                                placeholder="Any special requests or notes..."
                                             />
                                         </div>
 
-                                        {/* Services Selection */}
+                                        {/* Services Selection - REQUIRED */}
                                         <div className="md:col-span-2">
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Services *
+                                                Services * 
                                             </label>
                                             <div className="flex gap-2 mb-3">
                                                 <select
-                                                    value={serviceInput.service}
-                                                    onChange={(e) => setServiceInput({ service: e.target.value })}
+                                                    value={serviceInput}
+                                                    onChange={(e) => setServiceInput(e.target.value)}
                                                     className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                 >
                                                     <option value="">Select Service</option>
-                                                    {services.map(service => (
+                                                    {services && services.map(service => (
                                                         <option key={service.id} value={service.id}>
-                                                            {service.name} - ৳{service.price} ({getDurationMinutes(service.duration)} min)
+                                                            {service.name} - ₹{service.price} ({getDurationMinutes(service.duration)} min)
                                                         </option>
                                                     ))}
                                                 </select>
                                                 <button
                                                     type="button"
                                                     onClick={addService}
-                                                    className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold"
+                                                    className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
                                                 >
                                                     Add
                                                 </button>
                                             </div>
+                                            
+                                            
                                             {selectedServices.length > 0 && (
-                                                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
-                                                    {selectedServices.map((service, index) => (
-                                                        <div key={index} className="p-3 flex justify-between items-center">
-                                                            <div>
-                                                                <span className="text-sm font-medium text-gray-900">{service.service_name}</span>
-                                                                <span className="text-xs text-gray-500 ml-2">
-                                                                    ৳{service.price} - {service.duration} min
-                                                                </span>
+                                                <>
+                                                    <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3">
+                                                        <p className="text-xs text-green-700 flex items-center gap-1">
+                                                            <span className="text-sm">✓</span> 
+                                                            {selectedServices.length} service(s) added
+                                                        </p>
+                                                    </div>
+                                                    <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                                                        {selectedServices.map((service, index) => (
+                                                            <div key={index} className="p-3 flex justify-between items-center">
+                                                                <div>
+                                                                    <span className="text-sm font-medium text-gray-900">{service.service_name}</span>
+                                                                    <span className="text-xs text-gray-500 ml-2">
+                                                                        ₹{service.price} - {service.duration} min
+                                                                    </span>
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => removeService(index)}
+                                                                    className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                                                >
+                                                                    Remove
+                                                                </button>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => removeService(index)}
-                                                                className="text-red-600 hover:text-red-800 text-sm"
-                                                            >
-                                                                Remove
-                                                            </button>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                        ))}
+                                                    </div>
+                                                </>
                                             )}
                                         </div>
                                     </div>
@@ -799,8 +787,12 @@ export default function Appointments() {
                                         </button>
                                         <button
                                             type="submit"
-                                            disabled={loading || selectedServices.length === 0}
-                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                                            disabled={loading || !isFormValid()}
+                                            className={`px-5 h-10 rounded-lg text-white text-sm font-semibold transition-colors ${
+                                                loading || !isFormValid() 
+                                                    ? 'bg-gray-400 cursor-not-allowed' 
+                                                    : 'bg-black hover:bg-gray-800 cursor-pointer'
+                                            }`}
                                         >
                                             {loading ? 'Creating...' : 'Create Appointment'}
                                         </button>
@@ -865,12 +857,6 @@ export default function Appointments() {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                                            Branch
-                                        </label>
-                                        <p className="text-sm text-gray-900">{selectedAppointment.branch_name || `ID: ${selectedAppointment.branch}`}</p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                             Staff
                                         </label>
                                         <p className="text-sm text-gray-900">{selectedAppointment.staff_name || `ID: ${selectedAppointment.staff}`}</p>
@@ -891,7 +877,7 @@ export default function Appointments() {
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                             Total Amount
                                         </label>
-                                        <p className="text-lg font-bold text-[#dba627]">৳{selectedAppointment.total_amount}</p>
+                                        <p className="text-lg font-bold text-[#dba627]">₹{selectedAppointment.total_amount}</p>
                                     </div>
                                     <div className="md:col-span-2">
                                         <div className="flex justify-between items-center mb-1">
@@ -918,13 +904,13 @@ export default function Appointments() {
                                                         <p className="text-sm font-semibold text-gray-900">{item.service_name}</p>
                                                         <p className="text-xs text-gray-500">Duration: {item.duration} min</p>
                                                     </div>
-                                                    <p className="text-sm font-bold text-[#dba627]">৳{item.price}</p>
+                                                    <p className="text-sm font-bold text-[#dba627]">₹{item.price}</p>
                                                 </div>
                                             ))}
                                         </div>
                                         <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between">
                                             <span className="text-sm font-semibold text-gray-900">Total</span>
-                                            <span className="text-lg font-bold text-[#dba627]">৳{selectedAppointment.total_amount}</span>
+                                            <span className="text-lg font-bold text-[#dba627]">₹{selectedAppointment.total_amount}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1064,7 +1050,7 @@ export default function Appointments() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-sm font-semibold text-[#dba627]">৳{appointment.total_amount}</span>
+                                                <span className="text-sm font-semibold text-[#dba627]">₹{appointment.total_amount}</span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(appointment.status)}`}>

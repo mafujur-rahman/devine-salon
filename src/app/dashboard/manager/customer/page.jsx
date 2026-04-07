@@ -172,10 +172,8 @@ export default function Customers() {
                         </h1>
                         <p className="text-gray-500 mt-1">Manage all customers</p>
                     </div>
-                </div>
 
-                {/* Add Customer Button */}
-                <div className="flex justify-end mb-6">
+                    {/* Add Customer Button (moved here) */}
                     <button
                         onClick={() => {
                             setShowCreateForm(true);
@@ -189,6 +187,8 @@ export default function Customers() {
                         Add Customer
                     </button>
                 </div>
+
+
 
                 {/* Create Form Modal */}
                 {showCreateForm && (
@@ -227,7 +227,7 @@ export default function Customers() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="01712345678"
+                                                placeholder="+91 98765 43210"
                                             />
                                         </div>
                                         <div>
@@ -241,7 +241,7 @@ export default function Customers() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="John"
+                                                placeholder="Rahul"
                                             />
                                         </div>
                                         <div>
@@ -254,7 +254,7 @@ export default function Customers() {
                                                 value={formData.last_name}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Doe"
+                                                placeholder="Sharma"
                                             />
                                         </div>
                                         <div>
@@ -267,7 +267,7 @@ export default function Customers() {
                                                 value={formData.email}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="customer@example.com"
+                                               placeholder="rahul.sharma@example.com"
                                             />
                                         </div>
                                         <div>
@@ -280,7 +280,7 @@ export default function Customers() {
                                                 value={formData.whatsapp}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="01712345678"
+                                                placeholder="+91 98765 43210"
                                             />
                                         </div>
                                         <div>
@@ -308,7 +308,7 @@ export default function Customers() {
                                                 onChange={handleInputChange}
                                                 rows="2"
                                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Customer address"
+                                               placeholder="Flat 12, MG Road, Mumbai, Maharashtra"
                                             />
                                         </div>
                                     </div>

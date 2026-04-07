@@ -7,7 +7,7 @@ import DashboardLayout from "@/app/page";
 
 const API_BASE = "https://saloon.mrshakil.com/api";
 
-// Helper for authenticated requests
+// Helper for authenticated requests - FIXED VERSION
 async function apiFetch(endpoint, options = {}) {
     const token = localStorage.getItem("token");
 
@@ -21,11 +21,30 @@ async function apiFetch(endpoint, options = {}) {
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "API request failed");
+        // Try to parse error as JSON, but handle empty response
+        let errorMessage = "API request failed";
+        try {
+            const error = await response.json();
+            errorMessage = error.message || errorMessage;
+        } catch (e) {
+            // If response is empty or invalid JSON, use status text
+            errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
     }
 
-    return response.json();
+    // For DELETE requests or empty responses, return null instead of trying to parse JSON
+    if (options.method === 'DELETE' || response.status === 204) {
+        return null;
+    }
+
+    // Try to parse JSON, but handle empty responses
+    try {
+        return await response.json();
+    } catch (e) {
+        // Return null for empty responses
+        return null;
+    }
 }
 
 export default function Packages() {
@@ -38,16 +57,13 @@ export default function Packages() {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedPackage, setSelectedPackage] = useState(null);
 
-    // State for services and branches
+    // State for services
     const [services, setServices] = useState([]);
-    const [branches, setBranches] = useState([]);
 
     // State for form data
     const [packageFormData, setPackageFormData] = useState({
         name: '',
         description: '',
-        branch: '',
-        services: [],
         package_price: '',
         validity_days: ''
     });
@@ -61,7 +77,6 @@ export default function Packages() {
         checkAuth();
         fetchPackages();
         fetchServices();
-        fetchBranches();
     }, []);
 
     const checkAuth = () => {
@@ -81,7 +96,7 @@ export default function Packages() {
         setLoading(true);
         try {
             const data = await apiFetch('/service/packages/');
-            let packagesData = data.data || data.packages || data.results || [];
+            let packagesData = data?.data || data?.packages || data?.results || [];
             setPackages(packagesData);
         } catch (error) {
             console.error('Error fetching packages:', error);
@@ -99,21 +114,10 @@ export default function Packages() {
     const fetchServices = async () => {
         try {
             const data = await apiFetch('/service/services/');
-            let servicesData = data.data || data.services || data.results || [];
+            let servicesData = data?.data || data?.services || data?.results || [];
             setServices(servicesData);
         } catch (error) {
             console.error('Error fetching services:', error);
-        }
-    };
-
-    const fetchBranches = async () => {
-        try {
-            const data = await apiFetch('/branches/get-all-branches/');
-            let branchesData = data.data || data.branches || data.results || [];
-            console.log("branches", branchesData)
-            setBranches(branchesData);
-        } catch (error) {
-            console.error('Error fetching branches:', error);
         }
     };
 
@@ -124,7 +128,6 @@ export default function Packages() {
         const payload = {
             name: packageFormData.name,
             description: packageFormData.description,
-            branch: parseInt(packageFormData.branch),
             services: selectedServicesList.map(s => s.id),
             package_price: parseFloat(packageFormData.package_price),
             validity_days: parseInt(packageFormData.validity_days)
@@ -136,7 +139,7 @@ export default function Packages() {
                 body: JSON.stringify(payload)
             });
 
-            if (result.success) {
+            if (result?.success || result) {
                 Swal.fire({
                     icon: 'success',
                     title: 'Success!',
@@ -169,7 +172,6 @@ export default function Packages() {
         const payload = {
             name: packageFormData.name,
             description: packageFormData.description,
-            branch: parseInt(packageFormData.branch),
             services: selectedServicesList.map(s => s.id),
             package_price: parseFloat(packageFormData.package_price),
             validity_days: parseInt(packageFormData.validity_days)
@@ -181,7 +183,7 @@ export default function Packages() {
                 body: JSON.stringify(payload)
             });
 
-            if (result.success) {
+            if (result?.success || result) {
                 Swal.fire({
                     icon: 'success',
                     title: 'Success!',
@@ -233,7 +235,7 @@ export default function Packages() {
                 Swal.fire({
                     icon: 'success',
                     title: 'Deleted!',
-                    text: 'Package has been deleted.',
+                    text: 'Package has been deleted successfully.',
                     confirmButtonColor: '#dba627',
                     timer: 1500,
                     showConfirmButton: false
@@ -286,8 +288,6 @@ export default function Packages() {
         setPackageFormData({
             name: '',
             description: '',
-            branch: '',
-            services: [],
             package_price: '',
             validity_days: ''
         });
@@ -300,8 +300,6 @@ export default function Packages() {
         setPackageFormData({
             name: pkg.name,
             description: pkg.description || '',
-            branch: pkg.branch,
-            services: pkg.services,
             package_price: pkg.package_price,
             validity_days: pkg.validity_days
         });
@@ -335,9 +333,11 @@ export default function Packages() {
         return total.toFixed(2);
     };
 
-    const getBranchName = (branchId) => {
-        const branch = branches.find(b => b.id === parseInt(branchId));
-        return branch ? branch.name : `Branch ID: ${branchId}`;
+    const isFormValid = () => {
+        return packageFormData.name && 
+               packageFormData.package_price && 
+               packageFormData.validity_days &&
+               selectedServicesList.length > 0;
     };
 
     const getServiceNames = (serviceIds) => {
@@ -351,7 +351,7 @@ export default function Packages() {
     return (
         <DashboardLayout>
             <div>
-                {/* Header */}
+                {/* Header with Create Button */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>
                         <h1 className="text-3xl font-bold text-black tracking-tight">
@@ -359,10 +359,6 @@ export default function Packages() {
                         </h1>
                         <p className="text-gray-500 mt-1">Manage service packages and combos</p>
                     </div>
-                </div>
-
-                {/* Create Package Button */}
-                <div className="flex justify-end mb-6">
                     <button
                         onClick={() => {
                             resetPackageForm();
@@ -419,7 +415,7 @@ export default function Packages() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="e.g., Hair Care Combo"
+                                                placeholder="e.g., Deluxe Hair Care Package"
                                             />
                                         </div>
 
@@ -439,26 +435,6 @@ export default function Packages() {
 
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Branch *
-                                            </label>
-                                            <select
-                                                name="branch"
-                                                value={packageFormData.branch}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="">Select Branch</option>
-                                                {branches.map((branch) => (
-                                                    <option key={branch.id} value={branch.id}>
-                                                        {branch.name} - {branch.city}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Validity Days *
                                             </label>
                                             <input
@@ -468,7 +444,7 @@ export default function Packages() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="30"
+                                                placeholder="e.g., 30"
                                             />
                                         </div>
 
@@ -485,16 +461,16 @@ export default function Packages() {
                                                     <option value="">Select Service</option>
                                                     {services.map(service => (
                                                         <option key={service.id} value={service.id}>
-                                                            {service.name} - ৳{service.price} ({service.duration} min)
+                                                            {service.name} - ₹{service.price} ({service.duration} min)
                                                         </option>
                                                     ))}
                                                 </select>
                                                 <button
                                                     type="button"
                                                     onClick={addServiceToPackage}
-                                                    className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold"
+                                                    className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold cursor-pointer hover:bg-gray-800 transition-colors"
                                                 >
-                                                    Add
+                                                    Add Service
                                                 </button>
                                             </div>
 
@@ -505,13 +481,13 @@ export default function Packages() {
                                                             <div>
                                                                 <span className="text-sm font-medium text-gray-900">{service.name}</span>
                                                                 <span className="text-xs text-gray-500 ml-2">
-                                                                    ৳{service.price} - {service.duration} min
+                                                                    ₹{service.price} - {service.duration} min
                                                                 </span>
                                                             </div>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => removeServiceFromPackage(index)}
-                                                                className="text-red-600 hover:text-red-800 text-sm"
+                                                                className="text-red-600 hover:text-red-800 text-sm cursor-pointer"
                                                             >
                                                                 Remove
                                                             </button>
@@ -523,16 +499,16 @@ export default function Packages() {
 
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Original Price
+                                                Total Original Price
                                             </label>
                                             <div className="h-10 px-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center">
-                                                <span className="text-sm font-semibold text-gray-700">৳{calculateTotalPrice()}</span>
+                                                <span className="text-sm font-semibold text-gray-700">₹{calculateTotalPrice()}</span>
                                             </div>
                                         </div>
 
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Package Price (BDT) *
+                                                Package Price (₹) *
                                             </label>
                                             <input
                                                 type="number"
@@ -542,11 +518,11 @@ export default function Packages() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="500.00"
+                                                placeholder="e.g., 999"
                                             />
-                                            {parseFloat(packageFormData.package_price) < parseFloat(calculateTotalPrice()) && (
+                                            {packageFormData.package_price && parseFloat(packageFormData.package_price) < parseFloat(calculateTotalPrice()) && (
                                                 <p className="text-xs text-green-600 mt-1">
-                                                    ✨ Customers save ৳{(parseFloat(calculateTotalPrice()) - parseFloat(packageFormData.package_price)).toFixed(2)} with this package!
+                                                    ✨ Customers save ₹{(parseFloat(calculateTotalPrice()) - parseFloat(packageFormData.package_price)).toFixed(2)} with this package!
                                                 </p>
                                             )}
                                         </div>
@@ -567,8 +543,8 @@ export default function Packages() {
                                         </button>
                                         <button
                                             type="submit"
-                                            disabled={loading || selectedServicesList.length === 0}
-                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                                            disabled={loading || !isFormValid()}
+                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-gray-800 transition-colors"
                                         >
                                             {loading ? 'Saving...' : (editingPackage ? 'Update Package' : 'Create Package')}
                                         </button>
@@ -627,7 +603,7 @@ export default function Packages() {
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                             Branch
                                         </label>
-                                        <p className="text-sm text-gray-900">{getBranchName(selectedPackage.branch)}</p>
+                                        <p className="text-sm text-gray-900">{selectedPackage.branch_name || 'N/A'} - {selectedPackage.branch_city || ''}</p>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
@@ -639,20 +615,20 @@ export default function Packages() {
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                             Original Price
                                         </label>
-                                        <p className="text-sm text-gray-700 line-through">৳{selectedPackage.original_price}</p>
+                                        <p className="text-sm text-gray-700 line-through">₹{selectedPackage.original_price}</p>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                             Package Price
                                         </label>
-                                        <p className="text-xl font-bold text-[#dba627]">৳{selectedPackage.package_price}</p>
+                                        <p className="text-xl font-bold text-[#dba627]">₹{selectedPackage.package_price}</p>
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                             Savings
                                         </label>
                                         <p className="text-sm font-semibold text-green-600">
-                                            Save ৳{(parseFloat(selectedPackage.original_price) - parseFloat(selectedPackage.package_price)).toFixed(2)}
+                                            Save ₹{(parseFloat(selectedPackage.original_price) - parseFloat(selectedPackage.package_price)).toFixed(2)}
                                         </p>
                                     </div>
                                     <div className="md:col-span-2">
@@ -668,7 +644,7 @@ export default function Packages() {
                                                             <p className="text-sm font-semibold text-gray-900">{service?.name || `Service ${serviceId}`}</p>
                                                             <p className="text-xs text-gray-500">Duration: {service?.duration || 'N/A'} min</p>
                                                         </div>
-                                                        <p className="text-sm font-bold text-[#dba627]">৳{service?.price || '0'}</p>
+                                                        <p className="text-sm font-bold text-[#dba627]">₹{service?.price || '0'}</p>
                                                     </div>
                                                 );
                                             })}
@@ -737,7 +713,8 @@ export default function Packages() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-sm text-gray-700">{getBranchName(pkg.branch)}</span>
+                                                <span className="text-sm text-gray-700">{pkg.branch_name || 'N/A'}</span>
+                                                {pkg.branch_city && <span className="text-xs text-gray-400 block">({pkg.branch_city})</span>}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-wrap gap-1">
@@ -754,12 +731,12 @@ export default function Packages() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-sm text-gray-500 line-through">৳{pkg.original_price}</span>
+                                                <span className="text-sm text-gray-500 line-through">₹{pkg.original_price}</span>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-sm font-bold text-[#dba627]">৳{pkg.package_price}</span>
+                                                <span className="text-sm font-bold text-[#dba627]">₹{pkg.package_price}</span>
                                                 {savings > 0 && (
-                                                    <span className="text-xs text-green-600 block">Save ৳{savings.toFixed(2)}</span>
+                                                    <span className="text-xs text-green-600 block">Save ₹{savings.toFixed(2)}</span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">

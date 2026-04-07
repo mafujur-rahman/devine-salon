@@ -31,13 +31,14 @@ async function apiFetch(endpoint, options = {}) {
 export default function StaffManagement() {
     const router = useRouter();
     const [staff, setStaff] = useState([]);
+    const [bookableStaff, setBookableStaff] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [showEditForm, setShowEditForm] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedStaff, setSelectedStaff] = useState(null);
     const [jobTitles, setJobTitles] = useState([]);
-    const [branches, setBranches] = useState([]);
+    const [activeTab, setActiveTab] = useState("all");
     const [formData, setFormData] = useState({
         name: "",
         phone: "",
@@ -46,14 +47,13 @@ export default function StaffManagement() {
         job_title: "",
         commission_percentage: "",
         base_salary: "",
-        branch: ""
     });
 
     useEffect(() => {
         checkAuth();
         fetchStaff();
+        fetchBookableStaff();
         fetchJobTitles();
-        fetchBranches();
     }, []);
 
     const checkAuth = () => {
@@ -87,21 +87,21 @@ export default function StaffManagement() {
         }
     };
 
+    const fetchBookableStaff = async () => {
+        try {
+            const data = await apiFetch('/staff/bookable/');
+            setBookableStaff(data.data || []);
+        } catch (error) {
+            console.error('Error fetching bookable staff:', error);
+        }
+    };
+
     const fetchJobTitles = async () => {
         try {
             const data = await apiFetch('/staff/get-all-job-titles/');
             setJobTitles(data.data || []);
         } catch (error) {
             console.error('Error fetching job titles:', error);
-        }
-    };
-
-    const fetchBranches = async () => {
-        try {
-            const data = await apiFetch('/branches/get-all-branches/');
-            setBranches(data.data || []);
-        } catch (error) {
-            console.error('Error fetching branches:', error);
         }
     };
 
@@ -117,7 +117,6 @@ export default function StaffManagement() {
             job_title: parseInt(formData.job_title),
             commission_percentage: parseFloat(formData.commission_percentage),
             base_salary: parseFloat(formData.base_salary),
-            branch: parseInt(formData.branch)
         };
 
         try {
@@ -136,6 +135,7 @@ export default function StaffManagement() {
                 setShowCreateForm(false);
                 resetForm();
                 fetchStaff();
+                fetchBookableStaff();
             }
         } catch (error) {
             console.error('Error creating staff:', error);
@@ -162,7 +162,6 @@ export default function StaffManagement() {
             job_title: parseInt(formData.job_title),
             commission_percentage: parseFloat(formData.commission_percentage),
             base_salary: parseFloat(formData.base_salary),
-            branch: parseInt(formData.branch)
         };
 
         try {
@@ -181,6 +180,7 @@ export default function StaffManagement() {
                 setShowEditForm(false);
                 resetForm();
                 fetchStaff();
+                fetchBookableStaff();
             }
         } catch (error) {
             console.error('Error updating staff:', error);
@@ -221,6 +221,7 @@ export default function StaffManagement() {
                         confirmButtonColor: '#dba627'
                     });
                     fetchStaff();
+                    fetchBookableStaff();
                 }
             } catch (error) {
                 console.error('Error deleting staff:', error);
@@ -266,6 +267,7 @@ export default function StaffManagement() {
                         confirmButtonColor: '#dba627'
                     });
                     fetchStaff();
+                    fetchBookableStaff();
                 }
             } catch (error) {
                 console.error('Error toggling staff status:', error);
@@ -291,7 +293,6 @@ export default function StaffManagement() {
             job_title: staffMember.job_title || "",
             commission_percentage: staffMember.commission_percentage || "",
             base_salary: staffMember.base_salary || "",
-            branch: staffMember.branch || ""
         });
         setShowEditForm(true);
     };
@@ -310,7 +311,6 @@ export default function StaffManagement() {
             job_title: "",
             commission_percentage: "",
             base_salary: "",
-            branch: ""
         });
         setSelectedStaff(null);
     };
@@ -327,15 +327,12 @@ export default function StaffManagement() {
         return jobTitle ? jobTitle.name : "Unknown";
     };
 
-    const getBranchName = (branchId) => {
-        const branch = branches.find(b => b.id === branchId);
-        return branch ? branch.name : "Unknown";
-    };
+    const displayedStaff = activeTab === "all" ? staff : bookableStaff;
 
     return (
         <DashboardLayout>
             <div>
-                {/* Header */}
+                {/* Header with Add Button on Same Line */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>
                         <h1 className="text-3xl font-bold text-black tracking-tight">
@@ -343,10 +340,6 @@ export default function StaffManagement() {
                         </h1>
                         <p className="text-gray-500 mt-1">Manage your branch staff members</p>
                     </div>
-                </div>
-
-                {/* Create Staff Button */}
-                <div className="flex justify-end mb-6">
                     <button
                         onClick={() => {
                             resetForm();
@@ -360,6 +353,53 @@ export default function StaffManagement() {
                         Add Staff Member
                     </button>
                 </div>
+
+                {/* Tab Navigation */}
+                <div className="flex gap-2 mb-6 border-b border-gray-200">
+                    <button
+                        onClick={() => setActiveTab("all")}
+                        className={`px-6 py-3 text-sm font-semibold transition-all relative ${
+                            activeTab === "all"
+                                ? "text-[#dba627]"
+                                : "text-gray-500 hover:text-gray-700"
+                        }`}
+                    >
+                        All Staff
+                        {activeTab === "all" && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#dba627] rounded-full"></div>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("bookable")}
+                        className={`px-6 py-3 text-sm font-semibold transition-all relative ${
+                            activeTab === "bookable"
+                                ? "text-[#dba627]"
+                                : "text-gray-500 hover:text-gray-700"
+                        }`}
+                    >
+                        Bookable Staff
+                        {bookableStaff.length > 0 && (
+                            <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
+                                {bookableStaff.length}
+                            </span>
+                        )}
+                        {activeTab === "bookable" && (
+                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#dba627] rounded-full"></div>
+                        )}
+                    </button>
+                </div>
+
+                {/* Bookable Staff Info Banner */}
+                {activeTab === "bookable" && bookableStaff.length === 0 && (
+                    <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-center gap-3">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-sm text-blue-800">No bookable staff members available. Staff members with stylist job titles and active status will appear here.</p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Create Staff Form Modal */}
                 {showCreateForm && (
@@ -401,7 +441,7 @@ export default function StaffManagement() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Enter full name"
+                                                placeholder="e.g., Rajesh Kumar"
                                             />
                                         </div>
                                         <div>
@@ -415,7 +455,7 @@ export default function StaffManagement() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="017XXXXXXXX"
+                                                placeholder="+91 98765 43210"
                                             />
                                         </div>
                                         <div>
@@ -428,7 +468,7 @@ export default function StaffManagement() {
                                                 value={formData.email}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="staff@example.com"
+                                                placeholder="rajesh@example.com"
                                             />
                                         </div>
                                         <div>
@@ -441,7 +481,7 @@ export default function StaffManagement() {
                                                 value={formData.address}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Enter address"
+                                                placeholder="e.g., Andheri East, Mumbai"
                                             />
                                         </div>
                                         <div>
@@ -465,25 +505,6 @@ export default function StaffManagement() {
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Branch *
-                                            </label>
-                                            <select
-                                                name="branch"
-                                                value={formData.branch}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="">Select Branch</option>
-                                                {branches.map(branch => (
-                                                    <option key={branch.id} value={branch.id}>
-                                                        {branch.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Commission Percentage
                                             </label>
                                             <input
@@ -493,12 +514,12 @@ export default function StaffManagement() {
                                                 value={formData.commission_percentage}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="0.00"
+                                                placeholder="e.g., 15"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Base Salary
+                                                Base Salary (₹)
                                             </label>
                                             <input
                                                 type="number"
@@ -507,7 +528,7 @@ export default function StaffManagement() {
                                                 value={formData.base_salary}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="0.00"
+                                                placeholder="e.g., 25000"
                                             />
                                         </div>
                                     </div>
@@ -576,6 +597,7 @@ export default function StaffManagement() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="e.g., Rajesh Kumar"
                                             />
                                         </div>
                                         <div>
@@ -589,6 +611,7 @@ export default function StaffManagement() {
                                                 onChange={handleInputChange}
                                                 required
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="+91 98765 43210"
                                             />
                                         </div>
                                         <div>
@@ -601,6 +624,7 @@ export default function StaffManagement() {
                                                 value={formData.email}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="rajesh@example.com"
                                             />
                                         </div>
                                         <div>
@@ -613,6 +637,7 @@ export default function StaffManagement() {
                                                 value={formData.address}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="e.g., Andheri East, Mumbai"
                                             />
                                         </div>
                                         <div>
@@ -636,25 +661,6 @@ export default function StaffManagement() {
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Branch *
-                                            </label>
-                                            <select
-                                                name="branch"
-                                                value={formData.branch}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="">Select Branch</option>
-                                                {branches.map(branch => (
-                                                    <option key={branch.id} value={branch.id}>
-                                                        {branch.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Commission Percentage
                                             </label>
                                             <input
@@ -664,11 +670,12 @@ export default function StaffManagement() {
                                                 value={formData.commission_percentage}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="e.g., 15"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Base Salary
+                                                Base Salary (₹)
                                             </label>
                                             <input
                                                 type="number"
@@ -677,6 +684,7 @@ export default function StaffManagement() {
                                                 value={formData.base_salary}
                                                 onChange={handleInputChange}
                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="e.g., 25000"
                                             />
                                         </div>
                                     </div>
@@ -778,12 +786,6 @@ export default function StaffManagement() {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                                            Branch
-                                        </label>
-                                        <p className="text-sm text-gray-900">{getBranchName(selectedStaff.branch)}</p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                             Commission Percentage
                                         </label>
                                         <p className="text-sm text-gray-900">{selectedStaff.commission_percentage}%</p>
@@ -792,7 +794,7 @@ export default function StaffManagement() {
                                         <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                             Base Salary
                                         </label>
-                                        <p className="text-sm font-semibold text-[#dba627]">৳{selectedStaff.base_salary}</p>
+                                        <p className="text-sm font-semibold text-[#dba627]">₹{selectedStaff.base_salary}</p>
                                     </div>
                                     {selectedStaff.user_id && (
                                         <div className="md:col-span-2">
@@ -825,9 +827,13 @@ export default function StaffManagement() {
                     <div className="flex justify-center items-center h-64">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#dba627]"></div>
                     </div>
-                ) : staff.length === 0 ? (
+                ) : displayedStaff.length === 0 ? (
                     <div className="text-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
-                        <p className="text-gray-500">No staff members found. Click Add Staff Member to add one.</p>
+                        <p className="text-gray-500">
+                            {activeTab === "all" 
+                                ? "No staff members found. Click Add Staff Member to add one."
+                                : "No bookable staff members available."}
+                        </p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -839,14 +845,13 @@ export default function StaffManagement() {
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Job Title</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</th>
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Salary</th>
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                                     <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {staff.map((staffMember, index) => (
+                                {displayedStaff.map((staffMember, index) => (
                                     <tr key={staffMember.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4 text-sm text-gray-500 font-medium">{index + 1}</td>
                                         <td className="px-6 py-4">
@@ -864,13 +869,16 @@ export default function StaffManagement() {
                                             <span className="text-sm text-gray-700">{staffMember.phone}</span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="text-sm text-gray-700">{getJobTitleName(staffMember.job_title)}</span>
+                                            <span className="text-sm text-gray-700">
+                                                {activeTab === "bookable" 
+                                                    ? staffMember.job_title_name 
+                                                    : getJobTitleName(staffMember.job_title)}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="text-sm text-gray-700">{getBranchName(staffMember.branch)}</span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="text-sm font-semibold text-[#dba627]">৳{staffMember.base_salary}</span>
+                                            <span className="text-sm font-semibold text-[#dba627]">
+                                                ৳{staffMember.base_salary}
+                                            </span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${staffMember.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>

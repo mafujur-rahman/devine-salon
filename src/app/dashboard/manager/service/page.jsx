@@ -21,11 +21,30 @@ async function apiFetch(endpoint, options = {}) {
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "API request failed");
+        // Try to parse error as JSON, but handle empty response
+        let errorMessage = "API request failed";
+        try {
+            const error = await response.json();
+            errorMessage = error.message || errorMessage;
+        } catch (e) {
+            // If response is empty or invalid JSON, use status text
+            errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
     }
 
-    return response.json();
+    // For DELETE requests or empty responses, return null instead of trying to parse JSON
+    if (options.method === 'DELETE' || response.status === 204) {
+        return null;
+    }
+
+    // Try to parse JSON, but handle empty responses
+    try {
+        return await response.json();
+    } catch (e) {
+        // Return null for empty responses
+        return null;
+    }
 }
 
 export default function Services() {
@@ -79,7 +98,7 @@ export default function Services() {
     const fetchBranches = async () => {
         try {
             const data = await apiFetch('/branches/get-all-branches/');
-            let branchesData = data.data || data.branches || data.results || [];
+            let branchesData = data?.data || data?.branches || data?.results || [];
             setBranches(branchesData);
         } catch (error) {
             console.error('Error fetching branches:', error);
@@ -91,7 +110,7 @@ export default function Services() {
         setLoading(true);
         try {
             const data = await apiFetch('/service/categories/');
-            let categoriesData = data.data || data.categories || data.results || [];
+            let categoriesData = data?.data || data?.categories || data?.results || [];
             setCategories(categoriesData);
         } catch (error) {
             console.error('Error fetching categories:', error);
@@ -115,7 +134,20 @@ export default function Services() {
                 body: JSON.stringify(categoryFormData)
             });
 
-            if (result.success) {
+            if (result?.success) {
+                await fetchCategories();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: 'Category created successfully!',
+                    confirmButtonColor: '#dba627',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                setShowCategoryForm(false);
+                setCategoryFormData({ name: '' });
+            } else {
+                // If no success flag but request succeeded
                 await fetchCategories();
                 Swal.fire({
                     icon: 'success',
@@ -150,7 +182,7 @@ export default function Services() {
                 body: JSON.stringify(categoryFormData)
             });
 
-            if (result.success) {
+            if (result?.success || result) {
                 setCategories(prevCategories =>
                     prevCategories.map(cat =>
                         cat.id === editingCategory.id
@@ -209,7 +241,7 @@ export default function Services() {
                 Swal.fire({
                     icon: 'success',
                     title: 'Deleted!',
-                    text: 'Category has been deleted.',
+                    text: 'Category has been deleted successfully.',
                     confirmButtonColor: '#dba627',
                     timer: 1500,
                     showConfirmButton: false
@@ -233,7 +265,7 @@ export default function Services() {
         setLoading(true);
         try {
             const data = await apiFetch('/service/services/');
-            let servicesData = data.data || data.services || data.results || [];
+            let servicesData = data?.data || data?.services || data?.results || [];
             setServices(servicesData);
         } catch (error) {
             console.error('Error fetching services:', error);
@@ -267,7 +299,7 @@ export default function Services() {
                 body: JSON.stringify(payload)
             });
 
-            if (result.success) {
+            if (result?.success || result) {
                 await fetchServices();
                 Swal.fire({
                     icon: 'success',
@@ -312,7 +344,7 @@ export default function Services() {
                 body: JSON.stringify(payload)
             });
 
-            if (result.success) {
+            if (result?.success || result) {
                 setServices(prevServices =>
                     prevServices.map(service =>
                         service.id === editingService.id
@@ -371,7 +403,7 @@ export default function Services() {
                 Swal.fire({
                     icon: 'success',
                     title: 'Deleted!',
-                    text: 'Service has been deleted.',
+                    text: 'Service has been deleted successfully.',
                     confirmButtonColor: '#dba627',
                     timer: 1500,
                     showConfirmButton: false
@@ -556,7 +588,7 @@ export default function Services() {
                                                     onChange={(e) => setCategoryFormData({ name: e.target.value })}
                                                     required
                                                     className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] focus:border-transparent"
-                                                    placeholder="e.g., Hair, Spa, Nail"
+                                                    placeholder="e.g., Hair Styling, Spa Therapy, Nail Art"
                                                 />
                                             </div>
 
@@ -687,11 +719,9 @@ export default function Services() {
                                                         onChange={handleServiceInputChange}
                                                         required
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="e.g., Hair Cut"
+                                                        placeholder="e.g., Hair Cutting, Facial Treatment, Manicure"
                                                     />
                                                 </div>
-
-                                                
 
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
@@ -715,7 +745,7 @@ export default function Services() {
 
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                        Price (BDT) *
+                                                        Price (₹) *
                                                     </label>
                                                     <input
                                                         type="number"
@@ -724,7 +754,7 @@ export default function Services() {
                                                         onChange={handleServiceInputChange}
                                                         required
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="300"
+                                                        placeholder="e.g., 500"
                                                     />
                                                 </div>
 
@@ -739,7 +769,7 @@ export default function Services() {
                                                         onChange={handleServiceInputChange}
                                                         required
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="30"
+                                                        placeholder="e.g., 45"
                                                     />
                                                 </div>
 
@@ -771,7 +801,7 @@ export default function Services() {
                                                         value={serviceFormData.commission_percentage}
                                                         onChange={handleServiceInputChange}
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="20"
+                                                        placeholder="e.g., 15"
                                                     />
                                                 </div>
                                             </div>
@@ -841,14 +871,14 @@ export default function Services() {
                                                     <span className="text-sm text-gray-700">{getCategoryName(service.category)}</span>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="text-sm font-bold text-[#dba627]">৳{service.price}</span>
+                                                    <span className="text-sm font-bold text-[#dba627]">₹{service.price}</span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className="text-sm text-gray-700">{service.duration} min</span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium capitalize ${getGenderBadgeColor(service.gender)}`}>
-                                                        {service.gender}
+                                                        {service.gender === 'male' ? 'Male' : service.gender === 'female' ? 'Female' : 'Unisex'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">

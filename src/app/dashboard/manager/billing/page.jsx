@@ -40,12 +40,10 @@ export default function Billing() {
     const [services, setServices] = useState([]);
     const [products, setProducts] = useState([]);
     const [staff, setStaff] = useState([]);
-    const [branches, setBranches] = useState([]);
     const [appointments, setAppointments] = useState([]);
     const [customers, setCustomers] = useState([]);
 
     const [formData, setFormData] = useState({
-        branch: '',
         served_by: '',
         payment_method: 'cash',
         discount: '0',
@@ -75,7 +73,6 @@ export default function Billing() {
         fetchServices();
         fetchProducts();
         fetchStaff();
-        fetchBranches();
         fetchAppointments();
         fetchCustomers();
     }, []);
@@ -139,16 +136,6 @@ export default function Billing() {
         }
     };
 
-    const fetchBranches = async () => {
-        try {
-            const data = await apiFetch('/branches/get-all-branches/');
-            let branchesData = data.data || data.branches || data.results || [];
-            setBranches(branchesData);
-        } catch (error) {
-            console.error('Error fetching branches:', error);
-        }
-    };
-
     const fetchAppointments = async () => {
         try {
             const data = await apiFetch('/appointments/get-all-appointments/?status=completed');
@@ -186,7 +173,6 @@ export default function Billing() {
             };
         } else if (billingType === 'new_customer') {
             payload = {
-                branch: parseInt(formData.branch),
                 served_by: parseInt(formData.served_by),
                 phone: formData.phone,
                 first_name: formData.first_name,
@@ -206,7 +192,6 @@ export default function Billing() {
             };
         } else {
             payload = {
-                branch: parseInt(formData.branch),
                 customer_id: parseInt(formData.customer_id),
                 served_by: parseInt(formData.served_by),
                 payment_method: formData.payment_method,
@@ -358,7 +343,6 @@ export default function Billing() {
 
     const resetForm = () => {
         setFormData({
-            branch: '',
             served_by: '',
             payment_method: 'cash',
             discount: '0',
@@ -391,15 +375,8 @@ export default function Billing() {
     const getPaymentMethodBadge = (method) => {
         const colors = {
             'cash': 'bg-green-100 text-green-800',
-            'online': 'bg-blue-100 text-blue-800',
-            'card': 'bg-purple-100 text-purple-800'
         };
         return colors[method] || 'bg-gray-100 text-gray-800';
-    };
-
-    const getBranchName = (branchId) => {
-        const branch = branches.find(b => b.id === branchId);
-        return branch ? branch.name : `ID: ${branchId}`;
     };
 
     return (
@@ -411,12 +388,12 @@ export default function Billing() {
                         <h1 className="text-3xl font-bold text-black tracking-tight">
                             Billing & <span className="text-[#dba627]">Invoices</span>
                         </h1>
-                        <p className="text-gray-500 mt-1">Manage all invoices and billing</p>
+                        <p className="text-gray-500 mt-1">
+                            Manage all invoices and billing
+                        </p>
                     </div>
-                </div>
 
-                {/* Create Invoice Button */}
-                <div className="flex justify-end mb-6">
+                    {/* Create Invoice Button (moved here) */}
                     <button
                         onClick={() => {
                             resetForm();
@@ -524,45 +501,25 @@ export default function Billing() {
                                                     </select>
                                                 </div>
                                             ) : (
-                                                <>
-                                                    <div>
-                                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                            Branch *
-                                                        </label>
-                                                        <select
-                                                            name="branch"
-                                                            value={formData.branch}
-                                                            onChange={handleInputChange}
-                                                            required
-                                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        >
-                                                            <option value="">Select Branch</option>
-                                                            {branches.map(branch => (
-                                                                <option key={branch.id} value={branch.id}>{branch.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-
-                                                    <div>
-                                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                            Staff (Served By) *
-                                                        </label>
-                                                        <select
-                                                            name="served_by"
-                                                            value={formData.served_by}
-                                                            onChange={handleInputChange}
-                                                            required
-                                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        >
-                                                            <option value="">Select Staff</option>
-                                                            {staff.map(member => (
-                                                                <option key={member.id} value={member.id}>
-                                                                    {member.name}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
-                                                </>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                        Staff (Served By) *
+                                                    </label>
+                                                    <select
+                                                        name="served_by"
+                                                        value={formData.served_by}
+                                                        onChange={handleInputChange}
+                                                        required
+                                                        className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    >
+                                                        <option value="">Select Staff Member</option>
+                                                        {staff.map(member => (
+                                                            <option key={member.id} value={member.id}>
+                                                                {member.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                             )}
 
                                             {billingType === 'direct' && (
@@ -593,7 +550,7 @@ export default function Billing() {
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <div>
                                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                                Phone *
+                                                                Phone Number *
                                                             </label>
                                                             <input
                                                                 type="tel"
@@ -601,6 +558,7 @@ export default function Billing() {
                                                                 value={formData.phone}
                                                                 onChange={handleInputChange}
                                                                 required
+                                                                placeholder="e.g., 9876543210"
                                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                             />
                                                         </div>
@@ -614,6 +572,7 @@ export default function Billing() {
                                                                 value={formData.first_name}
                                                                 onChange={handleInputChange}
                                                                 required
+                                                                placeholder="Enter first name"
                                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                             />
                                                         </div>
@@ -626,30 +585,33 @@ export default function Billing() {
                                                                 name="last_name"
                                                                 value={formData.last_name}
                                                                 onChange={handleInputChange}
+                                                                placeholder="Enter last name"
                                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                             />
                                                         </div>
                                                         <div>
                                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                                Email
+                                                                Email ID
                                                             </label>
                                                             <input
                                                                 type="email"
                                                                 name="email"
                                                                 value={formData.email}
                                                                 onChange={handleInputChange}
+                                                                placeholder="customer@example.com"
                                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                             />
                                                         </div>
                                                         <div>
                                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                                WhatsApp
+                                                                WhatsApp Number
                                                             </label>
                                                             <input
                                                                 type="tel"
                                                                 name="whatsapp"
                                                                 value={formData.whatsapp}
                                                                 onChange={handleInputChange}
+                                                                placeholder="e.g., 9876543210"
                                                                 className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                             />
                                                         </div>
@@ -670,13 +632,14 @@ export default function Billing() {
                                                         </div>
                                                         <div className="col-span-2">
                                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                                Address
+                                                                Complete Address
                                                             </label>
                                                             <textarea
                                                                 name="address"
                                                                 value={formData.address}
                                                                 onChange={handleInputChange}
                                                                 rows="2"
+                                                                placeholder="Enter full address with city, state, pincode"
                                                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                             />
                                                         </div>
@@ -696,9 +659,7 @@ export default function Billing() {
                                                         required
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                     >
-                                                        <option value="cash">Cash</option>
-                                                        <option value="online">Online</option>
-                                                        <option value="card">Card</option>
+                                                        <option value="cash">Cash Only</option>
                                                     </select>
                                                 </div>
                                                 <div>
@@ -711,7 +672,7 @@ export default function Billing() {
                                                         onChange={handleInputChange}
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                     >
-                                                        <option value="flat">Flat (BDT)</option>
+                                                        <option value="flat">Flat (₹)</option>
                                                         <option value="percent">Percentage (%)</option>
                                                     </select>
                                                 </div>
@@ -726,7 +687,7 @@ export default function Billing() {
                                                         onChange={handleInputChange}
                                                         step="0.01"
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="0.00"
+                                                        placeholder="Enter discount amount"
                                                     />
                                                 </div>
                                             </div>
@@ -761,6 +722,7 @@ export default function Billing() {
                                                             value={currentItem.quantity}
                                                             onChange={(e) => setCurrentItem({ ...currentItem, quantity: e.target.value })}
                                                             min="1"
+                                                            placeholder="Enter quantity"
                                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                         />
                                                     </div>
@@ -777,12 +739,12 @@ export default function Billing() {
                                                             {currentItem.type === 'service'
                                                                 ? services.map(item => (
                                                                     <option key={item.id} value={item.id}>
-                                                                        {item.name} - ৳{item.price}
+                                                                        {item.name} - ₹{item.price}
                                                                     </option>
                                                                 ))
                                                                 : products.map(item => (
                                                                     <option key={item.id} value={item.id}>
-                                                                        {item.name} - ৳{item.selling_price} (Stock: {item.stock_qty})
+                                                                        {item.name} - ₹{item.selling_price} (Stock: {item.stock_qty})
                                                                     </option>
                                                                 ))
                                                             }
@@ -808,7 +770,7 @@ export default function Billing() {
                                                                 <div className="flex-1">
                                                                     <p className="text-sm font-medium text-gray-900">{item.name}</p>
                                                                     <p className="text-xs text-gray-500">
-                                                                        ৳{item.price} x {item.quantity} = ৳{item.total}
+                                                                        ₹{item.price} x {item.quantity} = ₹{item.total}
                                                                     </p>
                                                                 </div>
                                                                 <button
@@ -826,17 +788,17 @@ export default function Billing() {
                                                     <div className="mt-4 pt-3 border-t border-gray-200">
                                                         <div className="flex justify-between mb-2">
                                                             <span className="text-sm text-gray-600">Subtotal:</span>
-                                                            <span className="font-semibold text-gray-900">৳{calculateSubtotal().toFixed(2)}</span>
+                                                            <span className="font-semibold text-gray-900">₹{calculateSubtotal().toFixed(2)}</span>
                                                         </div>
                                                         {parseFloat(formData.discount) > 0 && (
                                                             <div className="flex justify-between mb-2 text-red-600">
-                                                                <span className="text-sm">Discount ({formData.discount_type === 'percent' ? `${formData.discount}%` : 'BDT'}):</span>
-                                                                <span>- ৳{calculateDiscount(calculateSubtotal()).toFixed(2)}</span>
+                                                                <span className="text-sm">Discount ({formData.discount_type === 'percent' ? `${formData.discount}%` : '₹'}):</span>
+                                                                <span>- ₹{calculateDiscount(calculateSubtotal()).toFixed(2)}</span>
                                                             </div>
                                                         )}
                                                         <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200">
                                                             <span>Total:</span>
-                                                            <span className="text-[#dba627]">৳{calculateTotal().toFixed(2)}</span>
+                                                            <span className="text-[#dba627]">₹{calculateTotal().toFixed(2)}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -930,19 +892,13 @@ export default function Billing() {
                                         </div>
                                     </div>
 
-                                    {/* Customer & Branch Info */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    {/* Customer Info */}
+                                    <div className="grid grid-cols-1 gap-5">
                                         <div className="border border-gray-200 p-4 rounded-lg">
                                             <h3 className="text-sm font-semibold text-gray-900 mb-2">Customer Information</h3>
                                             <p className="text-sm text-gray-700"><span className="text-gray-500">Name:</span> {selectedInvoice.customer?.name}</p>
                                             <p className="text-sm text-gray-700"><span className="text-gray-500">Phone:</span> {selectedInvoice.customer?.phone}</p>
                                             <p className="text-sm text-gray-700"><span className="text-gray-500">Email:</span> {selectedInvoice.customer?.email || 'N/A'}</p>
-                                        </div>
-                                        <div className="border border-gray-200 p-4 rounded-lg">
-                                            <h3 className="text-sm font-semibold text-gray-900 mb-2">Branch Information</h3>
-                                            <p className="text-sm text-gray-700"><span className="text-gray-500">Name:</span> {selectedInvoice.branch?.name}</p>
-                                            <p className="text-sm text-gray-700"><span className="text-gray-500">City:</span> {selectedInvoice.branch?.city}</p>
-                                            <p className="text-sm text-gray-700"><span className="text-gray-500">Phone:</span> {selectedInvoice.branch?.phone}</p>
                                         </div>
                                     </div>
 
@@ -966,27 +922,27 @@ export default function Billing() {
                                                             <td className="px-4 py-3 text-sm text-gray-900">{item.service_name || item.product_name}</td>
                                                             <td className="px-4 py-3 text-sm text-gray-600 capitalize">{item.item_type}</td>
                                                             <td className="px-4 py-3 text-sm text-gray-700 text-right">{item.quantity}</td>
-                                                            <td className="px-4 py-3 text-sm text-gray-700 text-right">৳{item.price}</td>
-                                                            <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">৳{item.total}</td>
+                                                            <td className="px-4 py-3 text-sm text-gray-700 text-right">₹{item.price}</td>
+                                                            <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">₹{item.total}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
                                                 <tfoot className="bg-gray-50 border-t border-gray-200">
                                                     <tr>
                                                         <td colSpan="4" className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Subtotal:</td>
-                                                        <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">৳{selectedInvoice.subtotal}</td>
+                                                        <td className="px-4 py-3 text-right text-sm font-semibold text-gray-900">₹{selectedInvoice.subtotal}</td>
                                                     </tr>
                                                     {parseFloat(selectedInvoice.discount) > 0 && (
                                                         <tr>
                                                             <td colSpan="4" className="px-4 py-3 text-right text-sm font-semibold text-red-600">
-                                                                Discount ({selectedInvoice.discount_type === 'percent' ? `${selectedInvoice.discount}%` : 'BDT'}):
+                                                                Discount ({selectedInvoice.discount_type === 'percent' ? `${selectedInvoice.discount}%` : '₹'}):
                                                             </td>
-                                                            <td className="px-4 py-3 text-right text-sm font-semibold text-red-600">- ৳{selectedInvoice.discount}</td>
+                                                            <td className="px-4 py-3 text-right text-sm font-semibold text-red-600">- ₹{selectedInvoice.discount}</td>
                                                         </tr>
                                                     )}
                                                     <tr className="border-t-2 border-gray-300">
                                                         <td colSpan="4" className="px-4 py-3 text-right text-base font-bold text-gray-900">Total:</td>
-                                                        <td className="px-4 py-3 text-right text-base font-bold text-[#dba627]">৳{selectedInvoice.total_amount}</td>
+                                                        <td className="px-4 py-3 text-right text-base font-bold text-[#dba627]">₹{selectedInvoice.total_amount}</td>
                                                     </tr>
                                                 </tfoot>
                                             </table>
@@ -1034,7 +990,6 @@ export default function Billing() {
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice ID</th>
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</th>
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Items</th>
                                     <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment</th>
@@ -1054,9 +1009,6 @@ export default function Billing() {
                                                 <p className="text-sm font-semibold text-gray-900">{invoice.customer?.name}</p>
                                                 <p className="text-xs text-gray-400">{invoice.customer?.phone}</p>
                                             </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="text-sm text-gray-700">{getBranchName(invoice.branch?.id || invoice.branch)}</span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className="text-sm text-gray-600">{formatDate(invoice.created_at)}</span>
@@ -1081,9 +1033,9 @@ export default function Billing() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <span className="text-sm font-bold text-[#dba627]">৳{invoice.total_amount}</span>
+                                            <span className="text-sm font-bold text-[#dba627]">₹{invoice.total_amount}</span>
                                             {parseFloat(invoice.discount) > 0 && (
-                                                <div className="text-xs text-green-600">-{invoice.discount}{invoice.discount_type === 'percent' ? '%' : ' BDT'}</div>
+                                                <div className="text-xs text-green-600">-{invoice.discount}{invoice.discount_type === 'percent' ? '%' : ' ₹'}</div>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 text-right">
