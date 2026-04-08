@@ -1,13 +1,11 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 
 const CreateBranch = ({ onBranchCreated }) => {
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [managers, setManagers] = useState([]);
-    const [loadingManagers, setLoadingManagers] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         address: '',
@@ -17,8 +15,7 @@ const CreateBranch = ({ onBranchCreated }) => {
         opening_time: '',
         closing_time: '',
         gst_number: '',
-        tax_rate: '',
-        manager: ''
+        tax_rate: ''
     });
 
     const API_BASE_URL = 'https://saloon.mrshakil.com/api';
@@ -43,55 +40,6 @@ const CreateBranch = ({ onBranchCreated }) => {
         return config;
     });
 
-    // Fetch staff members who have manager job titles
-    useEffect(() => {
-        if (showCreateForm) {
-            fetchManagers();
-        }
-    }, [showCreateForm]);
-
-    const fetchManagers = async () => {
-        setLoadingManagers(true);
-
-        try {
-            // Get all job titles
-            const jobTitlesResponse = await axiosInstance.get('/staff/get-all-job-titles/');
-            const jobTitlesResult = jobTitlesResponse.data;
-
-            if (!jobTitlesResult.success) throw new Error('Failed to fetch job titles');
-
-            // Only get job titles that can create manager accounts
-            const managerJobTitles = jobTitlesResult.data.filter(job => job.creates_manager_account);
-
-            console.log('Manager Job Titles:', managerJobTitles);
-
-            // Now fetch staff members with these job titles
-            const staffPromises = managerJobTitles.map(async (job) => {
-                const staffResponse = await axiosInstance.get(`/staff/get-all-staff/?job_title=${job.id}`);
-                return staffResponse.data.data || staffResponse.data.staff || staffResponse.data.results || [];
-            });
-
-            const staffResults = await Promise.all(staffPromises);
-            const allStaff = staffResults.flat();
-            
-            // Remove duplicates by id
-            const uniqueStaff = Array.from(new Map(allStaff.map(s => [s.id, s])).values());
-            
-            setManagers(uniqueStaff);
-        } catch (err) {
-            console.error('Error fetching managers:', err);
-            setManagers([]);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Failed to load manager options',
-                confirmButtonColor: '#dba627'
-            });
-        } finally {
-            setLoadingManagers(false);
-        }
-    };
-
     const handleInputChange = (e) => {
         setFormData({
             ...formData,
@@ -101,14 +49,14 @@ const CreateBranch = ({ onBranchCreated }) => {
 
     const resetForm = () => setFormData({
         name: '', address: '', city: '', phone: '', email: '',
-        opening_time: '', closing_time: '', gst_number: '', tax_rate: '', manager: ''
+        opening_time: '', closing_time: '', gst_number: '', tax_rate: ''
     });
 
     const handleCreateBranch = async (e) => {
         e.preventDefault();
+        
         setLoading(true);
         try {
-            // IMPORTANT: Send manager as integer ID, not object
             const payload = {
                 name: formData.name.trim(),
                 address: formData.address.trim(),
@@ -117,9 +65,8 @@ const CreateBranch = ({ onBranchCreated }) => {
                 email: formData.email.trim(),
                 opening_time: formData.opening_time,
                 closing_time: formData.closing_time,
-                gst_number: formData.gst_number.trim(),
-                tax_rate: formData.tax_rate ? parseFloat(formData.tax_rate) : null,
-                manager: parseInt(formData.manager)  // Ensure it's sent as integer
+                gst_number: formData.gst_number.trim() || null,
+                tax_rate: formData.tax_rate ? parseFloat(formData.tax_rate) : null
             };
 
             console.log('Sending payload:', payload);
@@ -150,10 +97,19 @@ const CreateBranch = ({ onBranchCreated }) => {
             }
         } catch (error) {
             console.error('Error creating branch:', error);
+            console.error('Error response:', error.response?.data);
+            
+            let errorMessage = 'Failed to create branch';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            }
+            
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: error.response?.data?.message || error.response?.data?.error || 'Failed to create branch',
+                text: errorMessage,
                 confirmButtonColor: '#dba627'
             });
         } finally {
@@ -161,7 +117,6 @@ const CreateBranch = ({ onBranchCreated }) => {
         }
     };
 
-    // Helper function to get placeholder text based on field
     const getPlaceholder = (field) => {
         const placeholders = {
             name: 'e.g., Andheri Salon, Bandra Beauty Studio',
@@ -355,40 +310,6 @@ const CreateBranch = ({ onBranchCreated }) => {
                                             step="0.01"
                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
                                         />
-                                    </div>
-
-                                    {/* Manager Select */}
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Branch Manager *
-                                        </label>
-                                        <select
-                                            name="manager"
-                                            value={formData.manager}
-                                            onChange={handleInputChange}
-                                            required
-                                            disabled={loadingManagers}
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
-                                        >
-                                            <option value="">Select Branch Manager</option>
-                                            {managers.map(manager => (
-                                                <option key={manager.id} value={manager.id}>
-                                                    {manager.name} - {manager.job_title_name}
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        {loadingManagers && (
-                                            <p className="text-xs text-gray-500 mt-2">
-                                                Loading managers...
-                                            </p>
-                                        )}
-
-                                        {!loadingManagers && managers.length === 0 && (
-                                            <p className="text-xs text-amber-600 mt-2">
-                                                No managers found. Please create a staff member with a manager job title first.
-                                            </p>
-                                        )}
                                     </div>
                                 </div>
 

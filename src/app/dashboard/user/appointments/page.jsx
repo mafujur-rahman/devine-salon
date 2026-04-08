@@ -16,6 +16,9 @@ export default function CreateAppointment() {
     const [branches, setBranches] = useState([]);
     const [selectedServices, setSelectedServices] = useState([]);
     const [serviceInput, setServiceInput] = useState("");
+    const [appointments, setAppointments] = useState([]);
+    const [showModal, setShowModal] = useState(false);
+    const [modalLoading, setModalLoading] = useState(false);
 
     const [formData, setFormData] = useState({
         branch: "",
@@ -33,10 +36,23 @@ export default function CreateAppointment() {
             axios.defaults.headers.common["Authorization"] = `Token ${token}`;
         }
         checkAuth();
-        fetchServices();
-        fetchStaff();
         fetchBranches();
+        fetchAppointments();
     }, []);
+
+    // Fetch staff when branch changes
+    useEffect(() => {
+        if (formData.branch) {
+            fetchStaff(formData.branch);
+            fetchServices(formData.branch);
+            setFormData(prev => ({ ...prev, staff: "" }));
+            setSelectedServices([]);
+            setServiceInput("");
+        } else {
+            setStaff([]);
+            setServices([]);
+        }
+    }, [formData.branch]);
 
     const checkAuth = () => {
         const token = localStorage.getItem("token");
@@ -47,21 +63,39 @@ export default function CreateAppointment() {
         }
     };
 
-    const fetchServices = async () => {
+    const fetchAppointments = async () => {
         try {
-            const response = await axios.get(`${API_BASE}/service/services/`);
-            setServices(response.data.data || []);
+            const response = await axios.get(`${API_BASE}/appointments/get-all-appointments/`);
+            const appointmentsData = response.data.data || [];
+            setAppointments(appointmentsData);
         } catch (error) {
-            console.error("Error fetching services:", error);
+            console.error("Error fetching appointments:", error);
         }
     };
 
-    const fetchStaff = async () => {
+    const fetchServices = async (branchId) => {
         try {
-            const response = await axios.get(`${API_BASE}/staff/get-all-staff/`);
+            let url = `${API_BASE}/service/services/`;
+            if (branchId) {
+                url = `${API_BASE}/service/services/?branch_id=${branchId}`;
+            }
+            const response = await axios.get(url);
+            const servicesData = response.data.data || response.data.results || [];
+            setServices(servicesData);
+        } catch (error) {
+            console.error("Error fetching services:", error);
+            setServices([]);
+        }
+    };
+
+    const fetchStaff = async (branchId) => {
+        try {
+            const url = `${API_BASE}/staff/bookable/?branch_id=${branchId}`;
+            const response = await axios.get(url);
             setStaff(response.data.data || []);
         } catch (error) {
             console.error("Error fetching staff:", error);
+            setStaff([]);
         }
     };
 
@@ -149,7 +183,7 @@ export default function CreateAppointment() {
             return;
         }
 
-        setLoading(true);
+        setModalLoading(true);
 
         const payload = {
             branch: parseInt(formData.branch),
@@ -172,7 +206,8 @@ export default function CreateAppointment() {
                     confirmButtonColor: "#dba627",
                 });
                 resetForm();
-                router.push("/appointments");
+                setShowModal(false);
+                fetchAppointments();
             } else {
                 throw new Error(response.data.message || "Failed to create appointment");
             }
@@ -185,7 +220,7 @@ export default function CreateAppointment() {
                 confirmButtonColor: "#dba627",
             });
         } finally {
-            setLoading(false);
+            setModalLoading(false);
         }
     };
 
@@ -207,219 +242,382 @@ export default function CreateAppointment() {
         return services.find(s => s.id === serviceId);
     };
 
+    const calculateTotal = () => {
+        let totalPrice = 0;
+        let totalDuration = 0;
+        selectedServices.forEach(item => {
+            const service = getServiceDetails(item.service);
+            if (service) {
+                totalPrice += parseFloat(service.price || 0);
+                totalDuration += getDurationMinutes(service.duration);
+            }
+        });
+        return { totalPrice, totalDuration };
+    };
+
+    const { totalPrice, totalDuration } = calculateTotal();
+
+    const getStatusColor = (status) => {
+        switch(status) {
+            case 'completed': return 'bg-green-100 text-green-800';
+            case 'pending': return 'bg-yellow-100 text-yellow-800';
+            case 'cancelled': return 'bg-red-100 text-red-800';
+            default: return 'bg-gray-100 text-gray-800';
+        }
+    };
+
     return (
         <DashboardLayout>
-            <div className=" bg-gray-50 py-4 px-4">
+            <div className="bg-gray-50 py-4 px-4 min-h-screen">
                 <div className="">
-                    {/* Header */}
-                    <div className="flex items-center gap-4 mb-6">
+                    {/* Header with Title and Button */}
+                    <div className="flex justify-between items-center mb-6">
                         <div>
                             <h1 className="text-3xl font-bold text-black tracking-tight">
-                                Create <span className="text-[#dba627]">Appointment</span>
+                                My <span className="text-[#dba627]">Appointments</span>
                             </h1>
-                            <p className="text-gray-500 mt-1">Fill in the details to schedule a new appointment</p>
+                            <p className="text-gray-500 mt-1">View and manage your appointments</p>
                         </div>
+                        <button
+                            onClick={() => setShowModal(true)}
+                            className="px-6 h-11 bg-black hover:bg-gray-800 text-white rounded-lg font-semibold transition-colors flex items-center gap-2 cursor-pointer"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Book Appointment
+                        </button>
                     </div>
 
-                    {/* Form Card */}
+                    {/* Appointments Table */}
                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                        <form onSubmit={handleSubmit}>
-                            <div className="p-6 space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                    {/* Branch Selection */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Branch *
-                                        </label>
-                                        <select
-                                            name="branch"
-                                            value={formData.branch}
-                                            onChange={handleInputChange}
-                                            required
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                        >
-                                            <option value="">Select Branch</option>
-                                            {branches.map(branch => (
-                                                <option key={branch.id} value={branch.id}>
-                                                    {branch.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* Staff Selection */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Staff Member *
-                                        </label>
-                                        <select
-                                            name="staff"
-                                            value={formData.staff}
-                                            onChange={handleInputChange}
-                                            required
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                        >
-                                            <option value="">Select Staff</option>
-                                            {staff.map(member => (
-                                                <option key={member.id} value={member.id}>
-                                                    {member.name || `${member.first_name} ${member.last_name}`}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    {/* Date */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Appointment Date *
-                                        </label>
-                                        <input
-                                            type="date"
-                                            name="date"
-                                            value={formData.date}
-                                            onChange={handleInputChange}
-                                            required
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                        />
-                                    </div>
-
-                                    {/* Time */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Appointment Time *
-                                        </label>
-                                        <input
-                                            type="time"
-                                            name="time"
-                                            value={formData.time}
-                                            onChange={handleInputChange}
-                                            required
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                        />
-                                    </div>
-
-                                    {/* Appointment Type */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Appointment Type *
-                                        </label>
-                                        <select
-                                            name="appointment_type"
-                                            value={formData.appointment_type}
-                                            onChange={handleInputChange}
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                        >
-                                            <option value="walkin">Walk-in</option>
-                                            <option value="appointment">Appointment</option>
-                                        </select>
-                                    </div>
-
-                                    {/* Notes */}
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Additional Notes
-                                        </label>
-                                        <textarea
-                                            name="notes"
-                                            value={formData.notes}
-                                            onChange={handleInputChange}
-                                            rows="2"
-                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            placeholder="Any special requests or notes..."
-                                        />
-                                    </div>
-
-                                    {/* Services Selection */}
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Services *
-                                        </label>
-                                        <div className="flex gap-2 mb-3">
-                                            <select
-                                                value={serviceInput}
-                                                onChange={(e) => setServiceInput(e.target.value)}
-                                                className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="">Select Service</option>
-                                                {services.map(service => (
-                                                    <option key={service.id} value={service.id}>
-                                                        {service.name} - ₹{service.price} ({getDurationMinutes(service.duration)} min)
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <button
-                                                type="button"
-                                                onClick={addService}
-                                                className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold hover:bg-gray-800 transition-colors cursor-pointer"
-                                            >
-                                                Add
-                                            </button>
-                                        </div>
-
-                                        {selectedServices.length > 0 && (
-                                            <>
-                                                <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3">
-                                                    <p className="text-xs text-green-700 flex items-center gap-1">
-                                                        <span className="text-sm">✓</span>
-                                                        {selectedServices.length} service(s) added
-                                                    </p>
-                                                </div>
-                                                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
-                                                    {selectedServices.map((item, index) => {
-                                                        const service = getServiceDetails(item.service);
-                                                        return (
-                                                            <div key={index} className="p-3 flex justify-between items-center">
-                                                                <div>
-                                                                    <span className="text-sm font-medium text-gray-900">
-                                                                        {service?.name || `Service #${item.service}`}
-                                                                    </span>
-                                                                    {service && (
-                                                                        <span className="text-xs text-gray-500 ml-2">
-                                                                            ₹{service.price} - {service.duration} min
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => removeService(index)}
-                                                                    className="text-red-600 hover:text-red-800 text-sm font-medium cursor-pointer"
-                                                                >
-                                                                    Remove
-                                                                </button>
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
+                                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Branch</th>
+                                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Staff</th>
+                                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Package</th>
+                                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Date & Time</th>
+                                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Type</th>
+                                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Total Amount</th>
+                                        <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">Services</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {appointments.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="9" className="px-6 py-12 text-center text-gray-500">
+                                                No appointments found. Click "Book Appointment" to schedule one.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        appointments.map((appointment) => (
+                                            <tr key={appointment.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4 text-sm font-medium text-gray-900">#{appointment.id}</td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm text-gray-900">{appointment.branch_name}</div>
+                                                    <div className="text-xs text-gray-500">{appointment.branch_city}</div>
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-900">{appointment.staff_name}</td>
+                                                <td className="px-6 py-4">
+                                                    {appointment.package_name ? (
+                                                        <div className="text-sm text-gray-900">{appointment.package_name}</div>
+                                                    ) : (
+                                                        <span className="text-sm text-gray-400">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm text-gray-900">{appointment.date}</div>
+                                                    <div className="text-xs text-gray-500">{appointment.time}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm capitalize">{appointment.appointment_type}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${getStatusColor(appointment.status)}`}>
+                                                        {appointment.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm font-semibold text-gray-900">₹{appointment.total_amount}</div>
+                                                    <div className="text-xs text-gray-500">{appointment.total_duration} min</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="space-y-1">
+                                                        {appointment.items && appointment.items.map((item, idx) => (
+                                                            <div key={idx} className="text-xs text-gray-600">
+                                                                • {item.service_name} (₹{item.price})
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Form Actions */}
-                            <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50 border-t border-gray-200">
-                                <button
-                                    type="button"
-                                    onClick={() => router.back()}
-                                    className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={loading || !isFormValid()}
-                                    className={`px-5 h-10 rounded-lg text-white text-sm font-semibold transition-colors ${loading || !isFormValid()
-                                            ? "bg-gray-400 cursor-not-allowed"
-                                            : "bg-black hover:bg-gray-800 cursor-pointer"
-                                        }`}
-                                >
-                                    {loading ? "Creating..." : "Create Appointment"}
-                                </button>
-                            </div>
-                        </form>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
+
+            {/* Modal for Booking Appointment - With Blur Effect */}
+            {showModal && (
+                <div className="fixed inset-0 z-50 overflow-y-auto">
+                    {/* Blur backdrop overlay */}
+                    <div 
+                        className="fixed inset-0 backdrop-blur-sm bg-white/5 transition-all"
+                        onClick={() => setShowModal(false)}
+                    ></div>
+
+                    {/* Modal container */}
+                    <div className="relative z-50 flex items-center justify-center min-h-screen p-4">
+                        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-4xl">
+                            {/* Modal Header */}
+                            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+                                <h3 className="text-2xl font-bold text-black">
+                                    Book <span className="text-[#dba627]">Appointment</span>
+                                </h3>
+                                <button
+                                    onClick={() => setShowModal(false)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            {/* Modal Body */}
+                            <form onSubmit={handleSubmit}>
+                                <div className="p-6 max-h-[70vh] overflow-y-auto">
+                                    <div className="space-y-5">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {/* Branch Selection */}
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Branch *
+                                                </label>
+                                                <select
+                                                    name="branch"
+                                                    value={formData.branch}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                >
+                                                    <option value="">Select Branch</option>
+                                                    {branches.map(branch => (
+                                                        <option key={branch.id} value={branch.id}>
+                                                            {branch.name} - {branch.city || branch.address}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Staff Selection */}
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Staff Member *
+                                                </label>
+                                                <select
+                                                    name="staff"
+                                                    value={formData.staff}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    disabled={!formData.branch}
+                                                >
+                                                    <option value="">
+                                                        {!formData.branch 
+                                                            ? "Please select a branch first" 
+                                                            : staff.length === 0 
+                                                                ? "No bookable staff available" 
+                                                                : "Select Staff Member"}
+                                                    </option>
+                                                    {staff.map(member => (
+                                                        <option key={member.id} value={member.id}>
+                                                            {member.name || `${member.first_name} ${member.last_name}`} 
+                                                            {member.job_title_name && ` - ${member.job_title_name}`}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {/* Date */}
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Appointment Date *
+                                                </label>
+                                                <input
+                                                    type="date"
+                                                    name="date"
+                                                    value={formData.date}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    min={new Date().toISOString().split('T')[0]}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                />
+                                            </div>
+
+                                            {/* Time */}
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Appointment Time *
+                                                </label>
+                                                <input
+                                                    type="time"
+                                                    name="time"
+                                                    value={formData.time}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                />
+                                            </div>
+
+                                            {/* Appointment Type */}
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Appointment Type *
+                                                </label>
+                                                <select
+                                                    name="appointment_type"
+                                                    value={formData.appointment_type}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                >
+                                                    <option value="walkin">Walk-in</option>
+                                                    <option value="appointment">Appointment</option>
+                                                </select>
+                                            </div>
+
+                                            {/* Notes */}
+                                            <div className="md:col-span-2">
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Additional Notes
+                                                </label>
+                                                <textarea
+                                                    name="notes"
+                                                    value={formData.notes}
+                                                    onChange={handleInputChange}
+                                                    rows="2"
+                                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="Any special requests or notes..."
+                                                />
+                                            </div>
+
+                                            {/* Services Selection */}
+                                            <div className="md:col-span-2">
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Services *
+                                                </label>
+                                                <div className="flex gap-2 mb-3">
+                                                    <select
+                                                        value={serviceInput}
+                                                        onChange={(e) => setServiceInput(e.target.value)}
+                                                        className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                        disabled={!formData.branch}
+                                                    >
+                                                        <option value="">
+                                                            {!formData.branch 
+                                                                ? "Please select a branch first" 
+                                                                : services.length === 0 
+                                                                    ? "No services available for this branch" 
+                                                                    : "Select Service"}
+                                                        </option>
+                                                        {services.map(service => (
+                                                            <option key={service.id} value={service.id}>
+                                                                {service.name} - ₹{service.price} ({getDurationMinutes(service.duration)} min)
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <button
+                                                        type="button"
+                                                        onClick={addService}
+                                                        disabled={!formData.branch || services.length === 0}
+                                                        className={`px-5 h-10 rounded-lg text-white text-sm font-semibold transition-colors ${
+                                                            !formData.branch || services.length === 0
+                                                                ? "bg-gray-400 cursor-not-allowed"
+                                                                : "bg-black hover:bg-gray-800 cursor-pointer"
+                                                        }`}
+                                                    >
+                                                        Add
+                                                    </button>
+                                                </div>
+
+                                                {selectedServices.length > 0 && (
+                                                    <>
+                                                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                                                            <div className="flex justify-between items-center">
+                                                                <p className="text-sm text-green-700">
+                                                                    ✓ {selectedServices.length} service(s) added
+                                                                </p>
+                                                                <p className="text-sm font-semibold text-green-700">
+                                                                    Total: ₹{totalPrice} ({totalDuration} min)
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                                                            {selectedServices.map((item, index) => {
+                                                                const service = getServiceDetails(item.service);
+                                                                return (
+                                                                    <div key={index} className="p-3 flex justify-between items-center">
+                                                                        <div>
+                                                                            <span className="text-sm font-medium text-gray-900">
+                                                                                {service?.name || `Service #${item.service}`}
+                                                                            </span>
+                                                                            {service && (
+                                                                                <span className="text-xs text-gray-500 ml-2">
+                                                                                    ₹{service.price} - {service.duration} min
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removeService(index)}
+                                                                            className="text-red-600 hover:text-red-800 text-sm font-medium cursor-pointer"
+                                                                        >
+                                                                            Remove
+                                                                        </button>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowModal(false)}
+                                        className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={modalLoading || !isFormValid()}
+                                        className={`px-5 h-10 rounded-lg text-white text-sm font-semibold transition-colors ${
+                                            modalLoading || !isFormValid()
+                                                ? "bg-gray-400 cursor-not-allowed"
+                                                : "bg-black hover:bg-gray-800 cursor-pointer"
+                                        }`}
+                                    >
+                                        {modalLoading ? "Creating..." : "Create Appointment"}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
         </DashboardLayout>
     );
 }

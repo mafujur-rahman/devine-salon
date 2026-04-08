@@ -50,8 +50,8 @@ const roleMenus = {
     ],
     customer: [
         { name: "Dashboard", icon: MdOutlineGridView, path: "/dashboard/user", hasSub: false },
-        { name: "Book Appointments", icon: MdCalendarToday, path: "/dashboard/user/appointments", hasSub: false },
-        { name: "Available Staff", icon: MdPeopleOutline, path: "/dashboard/user/staff", hasSub: false },
+        { name: "Appointments", icon: MdCalendarToday, path: "/dashboard/user/appointments", hasSub: false },
+        // { name: "Available Staff", icon: MdPeopleOutline, path: "/dashboard/user/staff", hasSub: false },
         // { name: "Booking History", icon: MdHistory, path: "/dashboard/user/history", hasSub: false },
         // { name: "Payments", icon: MdPayment, path: "/dashboard/user/payments", hasSub: false },
     ]

@@ -144,7 +144,7 @@ export default function LoginPage() {
                                     name="phone"
                                     value={formData.phone}
                                     onChange={handleChange}
-                                    placeholder="01710000001"
+                                    placeholder="9876543210"
                                     required
                                     className="w-full pl-10 pr-4 py-3 bg-white/5 border border-[#dba627]/20 rounded-lg text-white placeholder-offwhite/30 focus:outline-none focus:border-[#dba627] focus:ring-1 focus:ring-[#dba627] transition-all duration-300"
                                 />
