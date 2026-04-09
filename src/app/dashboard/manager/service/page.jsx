@@ -21,28 +21,23 @@ async function apiFetch(endpoint, options = {}) {
     });
 
     if (!response.ok) {
-        // Try to parse error as JSON, but handle empty response
         let errorMessage = "API request failed";
         try {
             const error = await response.json();
             errorMessage = error.message || errorMessage;
         } catch (e) {
-            // If response is empty or invalid JSON, use status text
             errorMessage = response.statusText || errorMessage;
         }
         throw new Error(errorMessage);
     }
 
-    // For DELETE requests or empty responses, return null instead of trying to parse JSON
     if (options.method === 'DELETE' || response.status === 204) {
         return null;
     }
 
-    // Try to parse JSON, but handle empty responses
     try {
         return await response.json();
     } catch (e) {
-        // Return null for empty responses
         return null;
     }
 }
@@ -55,6 +50,11 @@ export default function Services() {
     const [showCategoryForm, setShowCategoryForm] = useState(false);
     const [editingCategory, setEditingCategory] = useState(null);
     const [categoryFormData, setCategoryFormData] = useState({ name: '' });
+
+    // Category Pagination State
+    const [categoryCurrentPage, setCategoryCurrentPage] = useState(1);
+    const [categoryItemsPerPage] = useState(10);
+    const [categoryTotalPages, setCategoryTotalPages] = useState(1);
 
     // State for services
     const [services, setServices] = useState([]);
@@ -69,6 +69,11 @@ export default function Services() {
         commission_percentage: ''
     });
 
+    // Service Pagination State
+    const [serviceCurrentPage, setServiceCurrentPage] = useState(1);
+    const [serviceItemsPerPage] = useState(10);
+    const [serviceTotalPages, setServiceTotalPages] = useState(1);
+
     // State for branches
     const [branches, setBranches] = useState([]);
 
@@ -81,6 +86,15 @@ export default function Services() {
         fetchServices();
         fetchBranches();
     }, []);
+
+    // Reset pagination when tab changes
+    useEffect(() => {
+        if (activeTab === 'categories') {
+            setCategoryCurrentPage(1);
+        } else {
+            setServiceCurrentPage(1);
+        }
+    }, [activeTab]);
 
     const checkAuth = () => {
         const token = localStorage.getItem("token");
@@ -112,6 +126,7 @@ export default function Services() {
             const data = await apiFetch('/service/categories/');
             let categoriesData = data?.data || data?.categories || data?.results || [];
             setCategories(categoriesData);
+            setCategoryTotalPages(Math.ceil(categoriesData.length / categoryItemsPerPage));
         } catch (error) {
             console.error('Error fetching categories:', error);
             Swal.fire({
@@ -134,20 +149,7 @@ export default function Services() {
                 body: JSON.stringify(categoryFormData)
             });
 
-            if (result?.success) {
-                await fetchCategories();
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Success!',
-                    text: 'Category created successfully!',
-                    confirmButtonColor: '#dba627',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-                setShowCategoryForm(false);
-                setCategoryFormData({ name: '' });
-            } else {
-                // If no success flag but request succeeded
+            if (result?.success || result) {
                 await fetchCategories();
                 Swal.fire({
                     icon: 'success',
@@ -235,7 +237,12 @@ export default function Services() {
                 });
 
                 setCategories(prevCategories => {
-                    return prevCategories.filter(category => category.id !== categoryId);
+                    const updatedCategories = prevCategories.filter(category => category.id !== categoryId);
+                    setCategoryTotalPages(Math.ceil(updatedCategories.length / categoryItemsPerPage));
+                    if (categoryCurrentPage > Math.ceil(updatedCategories.length / categoryItemsPerPage) && categoryCurrentPage > 1) {
+                        setCategoryCurrentPage(categoryCurrentPage - 1);
+                    }
+                    return updatedCategories;
                 });
 
                 Swal.fire({
@@ -267,6 +274,7 @@ export default function Services() {
             const data = await apiFetch('/service/services/');
             let servicesData = data?.data || data?.services || data?.results || [];
             setServices(servicesData);
+            setServiceTotalPages(Math.ceil(servicesData.length / serviceItemsPerPage));
         } catch (error) {
             console.error('Error fetching services:', error);
             Swal.fire({
@@ -397,7 +405,12 @@ export default function Services() {
                 });
 
                 setServices(prevServices => {
-                    return prevServices.filter(service => service.id !== serviceId);
+                    const updatedServices = prevServices.filter(service => service.id !== serviceId);
+                    setServiceTotalPages(Math.ceil(updatedServices.length / serviceItemsPerPage));
+                    if (serviceCurrentPage > Math.ceil(updatedServices.length / serviceItemsPerPage) && serviceCurrentPage > 1) {
+                        setServiceCurrentPage(serviceCurrentPage - 1);
+                    }
+                    return updatedServices;
                 });
 
                 Swal.fire({
@@ -476,6 +489,92 @@ export default function Services() {
     const getCategoryName = (categoryId) => {
         const category = categories.find(c => c.id === parseInt(categoryId));
         return category ? category.name : `Category ID: ${categoryId}`;
+    };
+
+    // Pagination helper functions
+    const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+        const getPageNumbers = () => {
+            const pageNumbers = [];
+            const maxVisible = 5;
+            
+            if (totalPages <= maxVisible) {
+                for (let i = 1; i <= totalPages; i++) {
+                    pageNumbers.push(i);
+                }
+            } else {
+                if (currentPage <= 3) {
+                    for (let i = 1; i <= 4; i++) pageNumbers.push(i);
+                    pageNumbers.push('...');
+                    pageNumbers.push(totalPages);
+                } else if (currentPage >= totalPages - 2) {
+                    pageNumbers.push(1);
+                    pageNumbers.push('...');
+                    for (let i = totalPages - 3; i <= totalPages; i++) pageNumbers.push(i);
+                } else {
+                    pageNumbers.push(1);
+                    pageNumbers.push('...');
+                    for (let i = currentPage - 1; i <= currentPage + 1; i++) pageNumbers.push(i);
+                    pageNumbers.push('...');
+                    pageNumbers.push(totalPages);
+                }
+            }
+            return pageNumbers;
+        };
+
+        if (totalPages <= 1) return null;
+
+        return (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
+                <div className="text-sm text-gray-500">
+                    Page {currentPage} of {totalPages}
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => onPageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 rounded border border-gray-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                    >
+                        Previous
+                    </button>
+                    {getPageNumbers().map((pageNum, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => typeof pageNum === 'number' && onPageChange(pageNum)}
+                            className={`px-3 py-1 rounded text-sm transition-colors ${
+                                pageNum === currentPage
+                                    ? 'bg-[#dba627] text-white'
+                                    : pageNum === '...'
+                                    ? 'cursor-default border-none'
+                                    : 'border border-gray-300 hover:bg-gray-50'
+                            }`}
+                            disabled={pageNum === '...'}
+                        >
+                            {pageNum}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => onPageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 rounded border border-gray-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                    >
+                        Next
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    // Get current page data
+    const getCurrentCategories = () => {
+        const indexOfLastItem = categoryCurrentPage * categoryItemsPerPage;
+        const indexOfFirstItem = indexOfLastItem - categoryItemsPerPage;
+        return categories.slice(indexOfFirstItem, indexOfLastItem);
+    };
+
+    const getCurrentServices = () => {
+        const indexOfLastItem = serviceCurrentPage * serviceItemsPerPage;
+        const indexOfFirstItem = indexOfLastItem - serviceItemsPerPage;
+        return services.slice(indexOfFirstItem, indexOfLastItem);
     };
 
     return (
@@ -628,51 +727,60 @@ export default function Services() {
                                 <p className="text-gray-500">No categories found. Click Add Category to create one.</p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto rounded-xl border border-gray-200">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category Name</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
-                                            <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {categories.map((category, index) => (
-                                            <tr key={category.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-6 py-4 text-sm text-gray-500 font-medium">{index + 1}</td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-sm font-semibold text-gray-900">{category.name}</span>
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-500">#{category.id}</td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <button
-                                                            onClick={() => openEditCategory(category)}
-                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                            title="Edit"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteCategory(category.id)}
-                                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                            title="Delete"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                </td>
+                            <>
+                                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50 border-b border-gray-200">
+                                            <tr>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category Name</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
+                                                <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {getCurrentCategories().map((category, index) => (
+                                                <tr key={category.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-6 py-4 text-sm text-gray-500 font-medium">
+                                                        {(categoryCurrentPage - 1) * categoryItemsPerPage + index + 1}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm font-semibold text-gray-900">{category.name}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-gray-500">#{category.id}</td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                onClick={() => openEditCategory(category)}
+                                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                title="Edit"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteCategory(category.id)}
+                                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Delete"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <Pagination
+                                    currentPage={categoryCurrentPage}
+                                    totalPages={categoryTotalPages}
+                                    onPageChange={setCategoryCurrentPage}
+                                />
+                            </>
                         )}
                     </>
                 )}
@@ -842,77 +950,86 @@ export default function Services() {
                                 <p className="text-gray-500">No services found. Click Add Service to create one.</p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto rounded-xl border border-gray-200">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Service Name</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Duration</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Gender</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Commission</th>
-                                            <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {services.map((service, index) => (
-                                            <tr key={service.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-6 py-4 text-sm text-gray-500 font-medium">{index + 1}</td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-sm font-semibold text-gray-900">{service.name}</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-sm text-gray-700">{getBranchName(service.branch)}</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-sm text-gray-700">{getCategoryName(service.category)}</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-sm font-bold text-[#dba627]">₹{service.price}</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-sm text-gray-700">{service.duration} min</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium capitalize ${getGenderBadgeColor(service.gender)}`}>
-                                                        {service.gender === 'male' ? 'Male' : service.gender === 'female' ? 'Female' : 'Unisex'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-sm text-gray-700">
-                                                        {service.commission_percentage ? `${service.commission_percentage}%` : 'N/A'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <button
-                                                            onClick={() => openEditService(service)}
-                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                            title="Edit"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteService(service.id)}
-                                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                            title="Delete"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                </td>
+                            <>
+                                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50 border-b border-gray-200">
+                                            <tr>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Service Name</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Duration</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Gender</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Commission</th>
+                                                <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {getCurrentServices().map((service, index) => (
+                                                <tr key={service.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-6 py-4 text-sm text-gray-500 font-medium">
+                                                        {(serviceCurrentPage - 1) * serviceItemsPerPage + index + 1}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm font-semibold text-gray-900">{service.name}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm text-gray-700">{getBranchName(service.branch)}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm text-gray-700">{getCategoryName(service.category)}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm font-bold text-[#dba627]">₹{service.price}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm text-gray-700">{service.duration} min</span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium capitalize ${getGenderBadgeColor(service.gender)}`}>
+                                                            {service.gender === 'male' ? 'Male' : service.gender === 'female' ? 'Female' : 'Unisex'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm text-gray-700">
+                                                            {service.commission_percentage ? `${service.commission_percentage}%` : 'N/A'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                onClick={() => openEditService(service)}
+                                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                title="Edit"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteService(service.id)}
+                                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Delete"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                     </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <Pagination
+                                    currentPage={serviceCurrentPage}
+                                    totalPages={serviceTotalPages}
+                                    onPageChange={setServiceCurrentPage}
+                                />
+                            </>
                         )}
                     </>
                 )}

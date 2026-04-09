@@ -14,7 +14,9 @@ import {
     MdTrendingUp,
     MdCalendarToday,
     MdWork,
-    MdStar
+    MdStar,
+    MdNavigateBefore,
+    MdNavigateNext
 } from "react-icons/md";
 import DashboardLayout from "@/app/page";
 
@@ -52,6 +54,10 @@ export default function ManagerDashboard() {
     const [monthlyReport, setMonthlyReport] = useState(null);
     const [generatingReport, setGeneratingReport] = useState(false);
 
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10);
+
     // State for dashboard data
     const [stats, setStats] = useState({
         monthlyRevenue: 0,
@@ -70,6 +76,11 @@ export default function ManagerDashboard() {
     useEffect(() => {
         fetchDashboardData();
     }, []);
+
+    // Reset to first page when data changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [staffPerformance]);
 
     async function fetchDashboardData() {
         setLoading(true);
@@ -210,6 +221,18 @@ export default function ManagerDashboard() {
             .filter(staff => staff.completed_work > 0)
             .sort((a, b) => b.total_revenue - a.total_revenue)
             .slice(0, 5);
+    };
+
+    // Pagination logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = staffPerformance.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(staffPerformance.length / itemsPerPage);
+
+    const paginate = (pageNumber) => {
+        if (pageNumber >= 1 && pageNumber <= totalPages) {
+            setCurrentPage(pageNumber);
+        }
     };
 
     if (error) {
@@ -445,7 +468,7 @@ export default function ManagerDashboard() {
                         </div>
                     </div>
 
-                    {/* Staff Performance Table */}
+                    {/* Staff Performance Table with Pagination */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-[#dba627]/5 to-transparent">
                             <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
@@ -466,7 +489,7 @@ export default function ManagerDashboard() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200">
-                                    {staffPerformance.map((staff, idx) => {
+                                    {currentItems.map((staff, idx) => {
                                         const performancePercent = staff.completed_work > 0 
                                             ? Math.min(100, Math.round((staff.completed_work / 50) * 100))
                                             : 0;
@@ -518,6 +541,74 @@ export default function ManagerDashboard() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Pagination Controls */}
+                        {staffPerformance.length > 0 && (
+                            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                                <div className="text-sm text-gray-600">
+                                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, staffPerformance.length)} of {staffPerformance.length} entries
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => paginate(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className={`px-3 py-1 rounded-lg flex items-center gap-1 transition ${
+                                            currentPage === 1
+                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                : 'bg-white text-gray-700 hover:bg-[#dba627] hover:text-white border border-gray-300'
+                                        }`}
+                                    >
+                                        <MdNavigateBefore size={18} />
+                                        Previous
+                                    </button>
+                                    
+                                    {/* Page Numbers */}
+                                    <div className="flex gap-1">
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                                            // Show limited page numbers with ellipsis for many pages
+                                            if (
+                                                pageNum === 1 ||
+                                                pageNum === totalPages ||
+                                                (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                            ) {
+                                                return (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => paginate(pageNum)}
+                                                        className={`w-8 h-8 rounded-lg transition ${
+                                                            currentPage === pageNum
+                                                                ? 'bg-[#dba627] text-white'
+                                                                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+                                                        }`}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                );
+                                            } else if (
+                                                (pageNum === currentPage - 2 && currentPage > 3) ||
+                                                (pageNum === currentPage + 2 && currentPage < totalPages - 2)
+                                            ) {
+                                                return <span key={pageNum} className="px-1 text-gray-400">...</span>;
+                                            }
+                                            return null;
+                                        })}
+                                    </div>
+
+                                    <button
+                                        onClick={() => paginate(currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        className={`px-3 py-1 rounded-lg flex items-center gap-1 transition ${
+                                            currentPage === totalPages
+                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                                : 'bg-white text-gray-700 hover:bg-[#dba627] hover:text-white border border-gray-300'
+                                        }`}
+                                    >
+                                        Next
+                                        <MdNavigateNext size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Bottom Section */}

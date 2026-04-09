@@ -14,11 +14,25 @@ export default function CreateAppointment() {
     const [services, setServices] = useState([]);
     const [staff, setStaff] = useState([]);
     const [branches, setBranches] = useState([]);
+    const [packages, setPackages] = useState([]);
     const [selectedServices, setSelectedServices] = useState([]);
     const [serviceInput, setServiceInput] = useState("");
     const [appointments, setAppointments] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [modalLoading, setModalLoading] = useState(false);
+    
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10);
+    
+    // Package selection state
+    const [selectedPackage, setSelectedPackage] = useState("");
+    const [packageServices, setPackageServices] = useState([]);
+
+    // Branch status states
+    const [selectedBranchStatus, setSelectedBranchStatus] = useState(null);
+    const [isBranchAvailable, setIsBranchAvailable] = useState(true);
+    const [branchUnavailableReason, setBranchUnavailableReason] = useState("");
 
     const [formData, setFormData] = useState({
         branch: "",
@@ -40,17 +54,27 @@ export default function CreateAppointment() {
         fetchAppointments();
     }, []);
 
-    // Fetch staff when branch changes
+    // Fetch staff when branch changes and check branch status
     useEffect(() => {
         if (formData.branch) {
-            fetchStaff(formData.branch);
-            fetchServices(formData.branch);
+            checkBranchStatus(formData.branch);
+            if (isBranchAvailable) {
+                fetchStaff(formData.branch);
+                fetchServices(formData.branch);
+                fetchPackages(formData.branch);
+            }
             setFormData(prev => ({ ...prev, staff: "" }));
             setSelectedServices([]);
             setServiceInput("");
+            setSelectedPackage("");
+            setPackageServices([]);
         } else {
             setStaff([]);
             setServices([]);
+            setPackages([]);
+            setSelectedBranchStatus(null);
+            setIsBranchAvailable(true);
+            setBranchUnavailableReason("");
         }
     }, [formData.branch]);
 
@@ -88,6 +112,18 @@ export default function CreateAppointment() {
         }
     };
 
+    const fetchPackages = async (branchId) => {
+        try {
+            const url = `${API_BASE}/service/packages/?branch=${branchId}`;
+            const response = await axios.get(url);
+            const packagesData = response.data.data || [];
+            setPackages(packagesData);
+        } catch (error) {
+            console.error("Error fetching packages:", error);
+            setPackages([]);
+        }
+    };
+
     const fetchStaff = async (branchId) => {
         try {
             const url = `${API_BASE}/staff/bookable/?branch_id=${branchId}`;
@@ -109,11 +145,123 @@ export default function CreateAppointment() {
         }
     };
 
+    const checkBranchStatus = async (branchId) => {
+        try {
+            // Fetch branch details to check status
+            const response = await axios.get(`${API_BASE}/branches/${branchId}/`);
+            const branchData = response.data.data || response.data;
+            
+            setSelectedBranchStatus(branchData);
+            
+            // Check both active and currently_open status
+            let isAvailable = true;
+            let reason = "";
+            
+            // Check if branch is active
+            if (branchData.active === false) {
+                isAvailable = false;
+                reason = "This branch is currently inactive and cannot accept appointments.";
+            } 
+            // Check if branch is open
+            else if (branchData.currently_open === false) {
+                isAvailable = false;
+                reason = "This branch is currently closed. Please visit during business hours.";
+            }
+            // Check business hours if available
+            else if (branchData.opening_time && branchData.closing_time) {
+                // Optional: Check if current time is within business hours
+                const now = new Date();
+                const currentTime = now.getHours() * 60 + now.getMinutes();
+                const openingTime = convertTimeToMinutes(branchData.opening_time);
+                const closingTime = convertTimeToMinutes(branchData.closing_time);
+                
+                if (currentTime < openingTime || currentTime > closingTime) {
+                    isAvailable = false;
+                    reason = `This branch is currently closed. Business hours: ${branchData.opening_time} - ${branchData.closing_time}`;
+                }
+            }
+            
+            setIsBranchAvailable(isAvailable);
+            setBranchUnavailableReason(reason);
+            
+            if (!isAvailable) {
+                Swal.fire({
+                    icon: "error",
+                    title: "Branch Unavailable",
+                    text: reason,
+                    confirmButtonColor: "#dba627",
+                });
+                // Reset branch selection
+                setFormData(prev => ({ ...prev, branch: "" }));
+            }
+            
+            return isAvailable;
+        } catch (error) {
+            console.error("Error checking branch status:", error);
+            // If we can't fetch branch details, assume it's available
+            setIsBranchAvailable(true);
+            setBranchUnavailableReason("");
+            return true;
+        }
+    };
+    
+    const convertTimeToMinutes = (timeString) => {
+        if (!timeString) return 0;
+        const [hours, minutes] = timeString.split(':');
+        return parseInt(hours) * 60 + parseInt(minutes);
+    };
+
     const handleInputChange = (e) => {
         setFormData({
             ...formData,
             [e.target.name]: e.target.value,
         });
+    };
+
+    const handleBranchChange = async (e) => {
+        const branchId = e.target.value;
+        setFormData(prev => ({ ...prev, branch: branchId }));
+        
+        if (branchId) {
+            // Check branch status before allowing selection
+            const isAvailable = await checkBranchStatus(branchId);
+            if (!isAvailable) {
+                setFormData(prev => ({ ...prev, branch: "" }));
+            }
+        }
+    };
+
+    const handlePackageChange = (e) => {
+        const packageId = e.target.value;
+        setSelectedPackage(packageId);
+        
+        if (packageId) {
+            const selectedPkg = packages.find(pkg => pkg.id === parseInt(packageId));
+            if (selectedPkg && selectedPkg.services) {
+                // Add all services from the package
+                const packageServiceItems = selectedPkg.services.map(serviceId => ({ service: serviceId }));
+                setSelectedServices(packageServiceItems);
+                setPackageServices(packageServiceItems);
+                
+                Swal.fire({
+                    icon: "success",
+                    title: "Package Applied!",
+                    text: `${selectedPkg.name} package services have been added. You can still add more services if needed.`,
+                    confirmButtonColor: "#dba627",
+                    timer: 2000,
+                    showConfirmButton: true
+                });
+            }
+        } else {
+            // If package is deselected, only remove services that came from package
+            if (packageServices.length > 0) {
+                const currentServicesNotFromPackage = selectedServices.filter(
+                    service => !packageServices.some(pkgService => pkgService.service === service.service)
+                );
+                setSelectedServices(currentServicesNotFromPackage);
+                setPackageServices([]);
+            }
+        }
     };
 
     const addService = () => {
@@ -144,6 +292,23 @@ export default function CreateAppointment() {
     };
 
     const removeService = (indexToRemove) => {
+        const serviceToRemove = selectedServices[indexToRemove];
+        
+        // Check if this service came from a package
+        const isFromPackage = packageServices.some(
+            pkgService => pkgService.service === serviceToRemove.service
+        );
+        
+        if (isFromPackage) {
+            Swal.fire({
+                icon: "warning",
+                title: "Package Service",
+                text: "This service is part of a package. Either remove the package or keep the service.",
+                confirmButtonColor: "#dba627",
+            });
+            return;
+        }
+        
         setSelectedServices(selectedServices.filter((_, index) => index !== indexToRemove));
     };
 
@@ -158,10 +323,29 @@ export default function CreateAppointment() {
         });
         setSelectedServices([]);
         setServiceInput("");
+        setSelectedPackage("");
+        setPackageServices([]);
+        setSelectedBranchStatus(null);
+        setIsBranchAvailable(true);
+        setBranchUnavailableReason("");
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // Double-check branch availability before submission
+        if (formData.branch) {
+            const isAvailable = await checkBranchStatus(formData.branch);
+            if (!isAvailable) {
+                Swal.fire({
+                    icon: "error",
+                    title: "Cannot Create Appointment",
+                    text: branchUnavailableReason || "This branch is currently not accepting appointments. Please select another branch.",
+                    confirmButtonColor: "#dba627",
+                });
+                return;
+            }
+        }
 
         if (selectedServices.length === 0) {
             Swal.fire({
@@ -193,6 +377,7 @@ export default function CreateAppointment() {
             appointment_type: formData.appointment_type,
             notes: formData.notes,
             items: selectedServices,
+            package_id: selectedPackage ? parseInt(selectedPackage) : null,
         };
 
         try {
@@ -213,19 +398,30 @@ export default function CreateAppointment() {
             }
         } catch (error) {
             console.error("Error creating appointment:", error);
-            Swal.fire({
-                icon: "error",
-                title: "Error",
-                text: error.response?.data?.message || error.message || "Failed to create appointment",
-                confirmButtonColor: "#dba627",
-            });
+            
+            // Check if error is due to branch being closed/inactive
+            if (error.response?.status === 400 && error.response?.data?.message?.includes("branch")) {
+                Swal.fire({
+                    icon: "error",
+                    title: "Branch Unavailable",
+                    text: "This branch is currently not accepting appointments. Please try another branch.",
+                    confirmButtonColor: "#dba627",
+                });
+            } else {
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: error.response?.data?.message || error.message || "Failed to create appointment",
+                    confirmButtonColor: "#dba627",
+                });
+            }
         } finally {
             setModalLoading(false);
         }
     };
 
     const isFormValid = () => {
-        return formData.branch && formData.staff && formData.date && formData.time && selectedServices.length > 0;
+        return formData.branch && formData.staff && formData.date && formData.time && selectedServices.length > 0 && isBranchAvailable;
     };
 
     const getDurationMinutes = (duration) => {
@@ -266,6 +462,26 @@ export default function CreateAppointment() {
         }
     };
 
+    const getBranchStatusColor = (branch) => {
+        if (branch.active === false) return 'text-red-600 bg-red-50';
+        if (branch.currently_open === false) return 'text-orange-600 bg-orange-50';
+        return 'text-green-600 bg-green-50';
+    };
+
+    const getBranchStatusText = (branch) => {
+        if (branch.active === false) return 'Inactive';
+        if (branch.currently_open === false) return 'Closed';
+        return 'Open';
+    };
+
+    // Pagination logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentAppointments = appointments.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(appointments.length / itemsPerPage);
+
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
     return (
         <DashboardLayout>
             <div className="bg-gray-50 py-4 px-4 min-h-screen">
@@ -289,6 +505,45 @@ export default function CreateAppointment() {
                         </button>
                     </div>
 
+                    {/* Top Show All Branches Section */}
+                    <div className="mb-6">
+                        <h2 className="text-xl font-semibold text-black mb-3">
+                            All <span className="text-[#dba627]">Branches</span>
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {branches.map((branch) => (
+                                <div key={branch.id} className={`bg-white rounded-lg border p-4  ${
+                                    branch.active === false || branch.currently_open === false
+                                        ? 'border-red-200 opacity-75' 
+                                        : 'border-gray-200'
+                                }`}>
+                                    <div className="flex justify-between items-start">
+                                        <h3 className="font-semibold text-gray-900 text-lg">{branch.name}</h3>
+                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${getBranchStatusColor(branch)}`}>
+                                            {getBranchStatusText(branch)}
+                                        </span>
+                                    </div>
+                                    <p className="text-gray-600 text-sm mt-1">{branch.address}</p>
+                                    <p className="text-gray-500 text-xs mt-2">{branch.city}</p>
+                                    {branch.phone && <p className="text-gray-500 text-xs mt-1">📞 {branch.phone}</p>}
+                                    {branch.opening_time && branch.closing_time && (
+                                        <p className="text-gray-500 text-xs mt-1">
+                                            🕐 {branch.opening_time} - {branch.closing_time}
+                                        </p>
+                                    )}
+                                    {(branch.active === false || branch.currently_open === false) && (
+                                        <p className="text-red-500 text-xs mt-2 flex items-center gap-1">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            {branch.active === false ? 'Branch inactive - Not accepting appointments' : 'Currently closed'}
+                                        </p>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* Appointments Table */}
                     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
@@ -307,14 +562,14 @@ export default function CreateAppointment() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {appointments.length === 0 ? (
+                                    {currentAppointments.length === 0 ? (
                                         <tr>
                                             <td colSpan="9" className="px-6 py-12 text-center text-gray-500">
                                                 No appointments found. Click "Book Appointment" to schedule one.
                                             </td>
                                         </tr>
                                     ) : (
-                                        appointments.map((appointment) => (
+                                        currentAppointments.map((appointment) => (
                                             <tr key={appointment.id} className="hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-4 text-sm font-medium text-gray-900">#{appointment.id}</td>
                                                 <td className="px-6 py-4">
@@ -360,6 +615,56 @@ export default function CreateAppointment() {
                                 </tbody>
                             </table>
                         </div>
+                        
+                        {/* Pagination */}
+                        {appointments.length > 0 && (
+                            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                                <div className="text-sm text-gray-700">
+                                    Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{" "}
+                                    <span className="font-medium">
+                                        {Math.min(indexOfLastItem, appointments.length)}
+                                    </span>{" "}
+                                    of <span className="font-medium">{appointments.length}</span> results
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => paginate(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                                            currentPage === 1
+                                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer"
+                                        }`}
+                                    >
+                                        Previous
+                                    </button>
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                                        <button
+                                            key={number}
+                                            onClick={() => paginate(number)}
+                                            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                                                currentPage === number
+                                                    ? "bg-[#dba627] text-white"
+                                                    : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer"
+                                            }`}
+                                        >
+                                            {number}
+                                        </button>
+                                    ))}
+                                    <button
+                                        onClick={() => paginate(currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                                            currentPage === totalPages
+                                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                                : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer"
+                                        }`}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -404,17 +709,34 @@ export default function CreateAppointment() {
                                                 <select
                                                     name="branch"
                                                     value={formData.branch}
-                                                    onChange={handleInputChange}
+                                                    onChange={handleBranchChange}
                                                     required
                                                     className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                 >
                                                     <option value="">Select Branch</option>
-                                                    {branches.map(branch => (
-                                                        <option key={branch.id} value={branch.id}>
-                                                            {branch.name} - {branch.city || branch.address}
-                                                        </option>
-                                                    ))}
+                                                    {branches.map(branch => {
+                                                        const isDisabled = branch.active === false || branch.currently_open === false;
+                                                        return (
+                                                            <option 
+                                                                key={branch.id} 
+                                                                value={branch.id}
+                                                                disabled={isDisabled}
+                                                                className={isDisabled ? "text-gray-400" : "text-gray-800"}
+                                                            >
+                                                                {branch.name} - {branch.city}
+                                                                {isDisabled ? ` (${branch.active === false ? 'Inactive' : 'Closed'})` : ""}
+                                                            </option>
+                                                        );
+                                                    })}
                                                 </select>
+                                                {formData.branch && !isBranchAvailable && (
+                                                    <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                        {branchUnavailableReason || "This branch is not accepting appointments"}
+                                                    </p>
+                                                )}
                                             </div>
 
                                             {/* Staff Selection */}
@@ -428,14 +750,16 @@ export default function CreateAppointment() {
                                                     onChange={handleInputChange}
                                                     required
                                                     className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                    disabled={!formData.branch}
+                                                    disabled={!formData.branch || !isBranchAvailable}
                                                 >
                                                     <option value="">
                                                         {!formData.branch 
                                                             ? "Please select a branch first" 
-                                                            : staff.length === 0 
-                                                                ? "No bookable staff available" 
-                                                                : "Select Staff Member"}
+                                                            : !isBranchAvailable
+                                                                ? "Branch not available"
+                                                                : staff.length === 0 
+                                                                    ? "No bookable staff available" 
+                                                                    : "Select Staff Member"}
                                                     </option>
                                                     {staff.map(member => (
                                                         <option key={member.id} value={member.id}>
@@ -444,6 +768,29 @@ export default function CreateAppointment() {
                                                         </option>
                                                     ))}
                                                 </select>
+                                            </div>
+
+                                            {/* Package Selection - Optional */}
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Package (Optional)
+                                                </label>
+                                                <select
+                                                    value={selectedPackage}
+                                                    onChange={handlePackageChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    disabled={!formData.branch || !isBranchAvailable}
+                                                >
+                                                    <option value="">Select a package (optional)</option>
+                                                    {packages.map(pkg => (
+                                                        <option key={pkg.id} value={pkg.id}>
+                                                            {pkg.name} - ₹{pkg.package_price} (Valid for {pkg.validity_days} days)
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {packages.length === 0 && formData.branch && isBranchAvailable && (
+                                                    <p className="text-xs text-gray-500 mt-1">No packages available for this branch</p>
+                                                )}
                                             </div>
 
                                             {/* Date */}
@@ -457,8 +804,9 @@ export default function CreateAppointment() {
                                                     value={formData.date}
                                                     onChange={handleInputChange}
                                                     required
+                                                    disabled={!isBranchAvailable}
                                                     min={new Date().toISOString().split('T')[0]}
-                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] disabled:bg-gray-100 disabled:cursor-not-allowed"
                                                 />
                                             </div>
 
@@ -473,7 +821,8 @@ export default function CreateAppointment() {
                                                     value={formData.time}
                                                     onChange={handleInputChange}
                                                     required
-                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    disabled={!isBranchAvailable}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] disabled:bg-gray-100 disabled:cursor-not-allowed"
                                                 />
                                             </div>
 
@@ -486,7 +835,8 @@ export default function CreateAppointment() {
                                                     name="appointment_type"
                                                     value={formData.appointment_type}
                                                     onChange={handleInputChange}
-                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    disabled={!isBranchAvailable}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] disabled:bg-gray-100 disabled:cursor-not-allowed"
                                                 >
                                                     <option value="walkin">Walk-in</option>
                                                     <option value="appointment">Appointment</option>
@@ -503,7 +853,8 @@ export default function CreateAppointment() {
                                                     value={formData.notes}
                                                     onChange={handleInputChange}
                                                     rows="2"
-                                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    disabled={!isBranchAvailable}
+                                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] disabled:bg-gray-100 disabled:cursor-not-allowed"
                                                     placeholder="Any special requests or notes..."
                                                 />
                                             </div>
@@ -517,15 +868,17 @@ export default function CreateAppointment() {
                                                     <select
                                                         value={serviceInput}
                                                         onChange={(e) => setServiceInput(e.target.value)}
-                                                        className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        disabled={!formData.branch}
+                                                        className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                                        disabled={!formData.branch || !isBranchAvailable || services.length === 0}
                                                     >
                                                         <option value="">
                                                             {!formData.branch 
                                                                 ? "Please select a branch first" 
-                                                                : services.length === 0 
-                                                                    ? "No services available for this branch" 
-                                                                    : "Select Service"}
+                                                                : !isBranchAvailable
+                                                                    ? "Branch not available"
+                                                                    : services.length === 0 
+                                                                        ? "No services available for this branch" 
+                                                                        : "Select Service"}
                                                         </option>
                                                         {services.map(service => (
                                                             <option key={service.id} value={service.id}>
@@ -536,9 +889,9 @@ export default function CreateAppointment() {
                                                     <button
                                                         type="button"
                                                         onClick={addService}
-                                                        disabled={!formData.branch || services.length === 0}
+                                                        disabled={!formData.branch || !isBranchAvailable || services.length === 0}
                                                         className={`px-5 h-10 rounded-lg text-white text-sm font-semibold transition-colors ${
-                                                            !formData.branch || services.length === 0
+                                                            !formData.branch || !isBranchAvailable || services.length === 0
                                                                 ? "bg-gray-400 cursor-not-allowed"
                                                                 : "bg-black hover:bg-gray-800 cursor-pointer"
                                                         }`}
@@ -553,6 +906,11 @@ export default function CreateAppointment() {
                                                             <div className="flex justify-between items-center">
                                                                 <p className="text-sm text-green-700">
                                                                     ✓ {selectedServices.length} service(s) added
+                                                                    {selectedPackage && (
+                                                                        <span className="ml-2 text-xs text-green-600">
+                                                                            (Package applied)
+                                                                        </span>
+                                                                    )}
                                                                 </p>
                                                                 <p className="text-sm font-semibold text-green-700">
                                                                     Total: ₹{totalPrice} ({totalDuration} min)
@@ -562,6 +920,9 @@ export default function CreateAppointment() {
                                                         <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
                                                             {selectedServices.map((item, index) => {
                                                                 const service = getServiceDetails(item.service);
+                                                                const isFromPackage = packageServices.some(
+                                                                    pkgService => pkgService.service === item.service
+                                                                );
                                                                 return (
                                                                     <div key={index} className="p-3 flex justify-between items-center">
                                                                         <div>
@@ -573,11 +934,21 @@ export default function CreateAppointment() {
                                                                                     ₹{service.price} - {service.duration} min
                                                                                 </span>
                                                                             )}
+                                                                            {isFromPackage && (
+                                                                                <span className="ml-2 text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded">
+                                                                                    Package
+                                                                                </span>
+                                                                            )}
                                                                         </div>
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => removeService(index)}
-                                                                            className="text-red-600 hover:text-red-800 text-sm font-medium cursor-pointer"
+                                                                            className={`text-sm font-medium ${
+                                                                                isFromPackage
+                                                                                    ? "text-gray-400 cursor-not-allowed"
+                                                                                    : "text-red-600 hover:text-red-800 cursor-pointer"
+                                                                            }`}
+                                                                            disabled={isFromPackage}
                                                                         >
                                                                             Remove
                                                                         </button>

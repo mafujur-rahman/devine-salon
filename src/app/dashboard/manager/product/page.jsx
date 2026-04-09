@@ -56,6 +56,14 @@ export default function Products() {
     const [editingProduct, setEditingProduct] = useState(null);
     const [editingCategory, setEditingCategory] = useState(null);
     const [newCategoryName, setNewCategoryName] = useState('');
+    
+    // Pagination State
+    const [productCurrentPage, setProductCurrentPage] = useState(1);
+    const [categoryCurrentPage, setCategoryCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10);
+    const [productTotalPages, setProductTotalPages] = useState(1);
+    const [categoryTotalPages, setCategoryTotalPages] = useState(1);
+    
     const [formData, setFormData] = useState({
         name: '',
         brand: '',
@@ -71,6 +79,15 @@ export default function Products() {
         fetchProducts();
         fetchCategories();
     }, []);
+
+    // Reset pagination when tab changes
+    useEffect(() => {
+        if (activeTab === 'product') {
+            setProductCurrentPage(1);
+        } else {
+            setCategoryCurrentPage(1);
+        }
+    }, [activeTab]);
 
     const checkAuthAndBranch = () => {
         const token = localStorage.getItem("token");
@@ -106,6 +123,8 @@ export default function Products() {
             const data = await apiFetch('/products/get-all-products/');
             let productsData = data.data || data.products || data.results || [];
             setProducts(productsData);
+            setProductTotalPages(Math.ceil(productsData.length / itemsPerPage));
+            setProductCurrentPage(1);
         } catch (error) {
             console.error('Error fetching products:', error);
             Swal.fire({
@@ -131,6 +150,8 @@ export default function Products() {
                 categoriesData = data;
             }
             setCategories(categoriesData);
+            setCategoryTotalPages(Math.ceil(categoriesData.length / itemsPerPage));
+            setCategoryCurrentPage(1);
         } catch (error) {
             console.error('Error fetching categories:', error);
         }
@@ -280,8 +301,8 @@ export default function Products() {
                     text: 'Category has been deleted.',
                     confirmButtonColor: '#dba627'
                 });
-                fetchCategories();
-                fetchProducts();
+                await fetchCategories();
+                await fetchProducts();
             } catch (error) {
                 console.error('Error deleting category:', error);
                 Swal.fire({
@@ -506,6 +527,92 @@ export default function Products() {
     const getCategoryName = (categoryId) => {
         const category = categories.find(c => c.id === categoryId);
         return category ? category.name : `ID: ${categoryId}`;
+    };
+
+    // Get current page data
+    const getCurrentProducts = () => {
+        const indexOfLastItem = productCurrentPage * itemsPerPage;
+        const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+        return products.slice(indexOfFirstItem, indexOfLastItem);
+    };
+
+    const getCurrentCategories = () => {
+        const indexOfLastItem = categoryCurrentPage * itemsPerPage;
+        const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+        return categories.slice(indexOfFirstItem, indexOfLastItem);
+    };
+
+    // Pagination component
+    const Pagination = ({ currentPage, totalPages, onPageChange, itemsCount }) => {
+        const getPageNumbers = () => {
+            const pageNumbers = [];
+            const maxVisible = 5;
+            
+            if (totalPages <= maxVisible) {
+                for (let i = 1; i <= totalPages; i++) {
+                    pageNumbers.push(i);
+                }
+            } else {
+                if (currentPage <= 3) {
+                    for (let i = 1; i <= 4; i++) pageNumbers.push(i);
+                    pageNumbers.push('...');
+                    pageNumbers.push(totalPages);
+                } else if (currentPage >= totalPages - 2) {
+                    pageNumbers.push(1);
+                    pageNumbers.push('...');
+                    for (let i = totalPages - 3; i <= totalPages; i++) pageNumbers.push(i);
+                } else {
+                    pageNumbers.push(1);
+                    pageNumbers.push('...');
+                    for (let i = currentPage - 1; i <= currentPage + 1; i++) pageNumbers.push(i);
+                    pageNumbers.push('...');
+                    pageNumbers.push(totalPages);
+                }
+            }
+            return pageNumbers;
+        };
+
+        if (totalPages <= 1) return null;
+
+        return (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 mt-4">
+                <div className="text-sm text-gray-500">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, itemsCount)} of {itemsCount} items
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => onPageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 rounded border border-gray-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                    >
+                        Previous
+                    </button>
+                    {getPageNumbers().map((pageNum, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => typeof pageNum === 'number' && onPageChange(pageNum)}
+                            className={`px-3 py-1 rounded text-sm transition-colors ${
+                                pageNum === currentPage
+                                    ? 'bg-[#dba627] text-white'
+                                    : pageNum === '...'
+                                    ? 'cursor-default border-none'
+                                    : 'border border-gray-300 hover:bg-gray-50'
+                            }`}
+                            disabled={pageNum === '...'}
+                        >
+                            {pageNum}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => onPageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 rounded border border-gray-300 text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                    >
+                        Next
+                    </button>
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -903,90 +1010,97 @@ export default function Products() {
                                 <p className="text-gray-500">No products found. Click Add Product to create one.</p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto rounded-xl border border-gray-200">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Brand</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                            <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {products.map((product, index) => {
-                                            const stockStatus = getStockStatus(product.stock_qty, product.low_stock_alert);
+                            <>
+                                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50 border-b border-gray-200">
+                                            <tr>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Product</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Brand</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Price</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                                <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {getCurrentProducts().map((product, index) => {
+                                                const stockStatus = getStockStatus(product.stock_qty, product.low_stock_alert);
 
-                                            return (
-                                                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                                                    <td className="px-6 py-4 text-sm text-gray-500 font-medium">{index + 1}</td>
-                                                    <td className="px-6 py-4">
-                                                        <div>
+                                                return (
+                                                    <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                                                        <td className="px-6 py-4 text-sm text-gray-500 font-medium">
+                                                            {(productCurrentPage - 1) * itemsPerPage + index + 1}
+                                                        </td>
+                                                        <td className="px-6 py-4">
                                                             <p className="text-sm font-semibold text-gray-900">{product.name}</p>
-                                                            <p className="text-xs text-gray-400">ID: {product.id}</p>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm text-gray-700">{product.brand}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm text-gray-700">{getCategoryName(product.category)}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className="text-sm font-bold text-[#dba627]">₹{product.selling_price}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`text-sm font-semibold ${product.stock_qty <= product.low_stock_alert ? 'text-red-600' : 'text-gray-900'}`}>
-                                                            {product.stock_qty} units
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${stockStatus.color}`}>
-                                                            {stockStatus.text}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <button
-                                                                onClick={() => fetchProductDetails(product.id)}
-                                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                                title="View Details"
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                                </svg>
-                                                            </button>
-                                                            <button
-                                                                onClick={() => openEditProduct(product)}
-                                                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                                title="Edit"
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                                </svg>
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeleteProduct(product.id)}
-                                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                title="Delete"
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="text-sm text-gray-700">{product.brand}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="text-sm text-gray-700">{getCategoryName(product.category)}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className="text-sm font-bold text-[#dba627]">₹{product.selling_price}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`text-sm font-semibold ${product.stock_qty <= product.low_stock_alert ? 'text-red-600' : 'text-gray-900'}`}>
+                                                                {product.stock_qty} units
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${stockStatus.color}`}>
+                                                                {stockStatus.text}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button
+                                                                    onClick={() => fetchProductDetails(product.id)}
+                                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                    title="View Details"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                    </svg>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => openEditProduct(product)}
+                                                                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                                    title="Edit"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                    </svg>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleDeleteProduct(product.id)}
+                                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                    title="Delete"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <Pagination 
+                                    currentPage={productCurrentPage}
+                                    totalPages={productTotalPages}
+                                    onPageChange={setProductCurrentPage}
+                                    itemsCount={products.length}
+                                />
+                            </>
                         )}
                     </>
                 )}
@@ -1003,53 +1117,59 @@ export default function Products() {
                                 <p className="text-gray-500">No categories found. Click Add Category to create one.</p>
                             </div>
                         ) : (
-                            <div className="overflow-x-auto rounded-xl border border-gray-200">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category ID</th>
-                                            <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category Name</th>
-                                            <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {categories.map((category, index) => (
-                                            <tr key={category.id} className="hover:bg-gray-50 transition-colors">
-                                                <td className="px-6 py-4 text-sm text-gray-500 font-medium">{index + 1}</td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-sm font-semibold text-gray-900">#{category.id}</span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className="text-sm text-gray-700">{category.name}</span>
-                                                </td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <button
-                                                            onClick={() => openEditCategory(category)}
-                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                            title="Edit Category"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteCategory(category.id)}
-                                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                            title="Delete Category"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                </td>
+                            <>
+                                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                                    <table className="w-full">
+                                        <thead className="bg-gray-50 border-b border-gray-200">
+                                            <tr>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                                                <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category Name</th>
+                                                <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {getCurrentCategories().map((category, index) => (
+                                                <tr key={category.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-6 py-4 text-sm text-gray-500 font-medium">
+                                                        {(categoryCurrentPage - 1) * itemsPerPage + index + 1}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-sm font-semibold text-gray-900">{category.name}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                onClick={() => openEditCategory(category)}
+                                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                title="Edit Category"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteCategory(category.id)}
+                                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Delete Category"
+                                                            >
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <Pagination 
+                                    currentPage={categoryCurrentPage}
+                                    totalPages={categoryTotalPages}
+                                    onPageChange={setCategoryCurrentPage}
+                                    itemsCount={categories.length}
+                                />
+                            </>
                         )}
                     </>
                 )}
