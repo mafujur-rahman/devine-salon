@@ -28,7 +28,7 @@ async function apiFetch(endpoint, options = {}) {
     return response.json();
 }
 
-export default function Customers() {
+export default function AdminCustomers() {
     const router = useRouter();
 
     const [customers, setCustomers] = useState([]);
@@ -61,7 +61,7 @@ export default function Customers() {
             router.push("/login");
         }
 
-        if (role !== "manager") {
+        if (role !== "superadmin") {
             router.push("/login");
         }
     };
@@ -169,6 +169,21 @@ export default function Customers() {
 
     const getInitials = (firstName, lastName) => {
         return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
+    };
+
+    const getStatusBadgeColor = (status) => {
+        const colors = {
+            'booked': 'bg-yellow-100 text-yellow-800',
+            'approved': 'bg-blue-100 text-blue-800',
+            'in_progress': 'bg-purple-100 text-purple-800',
+            'completed': 'bg-green-100 text-green-800',
+            'cancelled': 'bg-red-100 text-red-800'
+        };
+        return colors[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    const formatStatusLabel = (status) => {
+        return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     };
 
     return (
@@ -387,7 +402,7 @@ export default function Customers() {
                                                 Basic Information
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-gray-50 p-5 rounded-xl">
-                                               
+                                                
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                                         Role
@@ -601,7 +616,7 @@ export default function Customers() {
                                                     <p className="text-sm font-semibold text-gray-900">
                                                         {customer.first_name} {customer.last_name}
                                                     </p>
-                                                    
+                                                   
                                                 </div>
                                             </div>
                                         </td>

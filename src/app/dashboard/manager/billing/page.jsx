@@ -42,6 +42,12 @@ export default function Billing() {
     const [staff, setStaff] = useState([]);
     const [appointments, setAppointments] = useState([]);
     const [customers, setCustomers] = useState([]);
+    const [branchInfo, setBranchInfo] = useState(null);
+    
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(15);
+    const [searchTerm, setSearchTerm] = useState("");
 
     const [formData, setFormData] = useState({
         served_by: '',
@@ -66,6 +72,7 @@ export default function Billing() {
     });
 
     const [cartItems, setCartItems] = useState([]);
+    const [selectedAppointmentData, setSelectedAppointmentData] = useState(null);
 
     useEffect(() => {
         checkAuth();
@@ -75,6 +82,7 @@ export default function Billing() {
         fetchStaff();
         fetchAppointments();
         fetchCustomers();
+        fetchBranchInfo();
     }, []);
 
     // Reset currentItem type when billingType changes
@@ -86,6 +94,20 @@ export default function Billing() {
         }
     }, [billingType]);
 
+    // Load appointment items when appointment is selected
+    useEffect(() => {
+        if (billingType === 'appointment' && formData.appointment) {
+            const appointment = appointments.find(app => app.id === parseInt(formData.appointment));
+            if (appointment) {
+                setSelectedAppointmentData(appointment);
+                // Clear cart items when appointment changes
+                setCartItems([]);
+            }
+        } else {
+            setSelectedAppointmentData(null);
+        }
+    }, [formData.appointment, billingType, appointments]);
+
     const checkAuth = () => {
         const token = localStorage.getItem("token");
         const role = localStorage.getItem("role");
@@ -96,6 +118,18 @@ export default function Billing() {
 
         if (role !== "manager") {
             router.push("/login");
+        }
+    };
+
+    const fetchBranchInfo = async () => {
+        try {
+            const data = await apiFetch('/branches/get-all-branches/');
+            let branchData = data.data || data.branches || data.results || [];
+            if (branchData.length > 0) {
+                setBranchInfo(branchData[0]);
+            }
+        } catch (error) {
+            console.error('Error fetching branch info:', error);
         }
     };
 
@@ -138,7 +172,7 @@ export default function Billing() {
 
     const fetchStaff = async () => {
         try {
-            const data = await apiFetch('/users/staff/');
+            const data = await apiFetch('/staff/bookable/');
             setStaff(data.data || []);
         } catch (error) {
             console.error('Error fetching staff:', error);
@@ -170,16 +204,24 @@ export default function Billing() {
         let payload;
 
         if (billingType === 'appointment') {
+            // For appointment billing: ONLY send appointment ID and payment details
+            // DO NOT send any service items - backend handles that automatically
             payload = {
                 appointment: parseInt(formData.appointment),
                 payment_method: formData.payment_method,
                 discount: formData.discount,
                 discount_type: formData.discount_type,
-                items: cartItems.map(item => ({
-                    product: item.type === 'product' ? parseInt(item.id) : undefined,
-                    quantity: item.quantity
-                })).filter(item => item.product)
             };
+            
+            // ONLY add items array if there are additional products in cart
+            if (cartItems.length > 0) {
+                payload.items = cartItems.map(item => ({
+                    product: parseInt(item.id),
+                    quantity: item.quantity
+                }));
+            }
+            // If cartItems is empty, NO 'items' field is sent at all
+            
         } else if (billingType === 'new_customer') {
             payload = {
                 served_by: parseInt(formData.served_by),
@@ -200,6 +242,7 @@ export default function Billing() {
                 }))
             };
         } else {
+            // direct billing
             payload = {
                 customer_id: parseInt(formData.customer_id),
                 served_by: parseInt(formData.served_by),
@@ -213,6 +256,8 @@ export default function Billing() {
                 }))
             };
         }
+
+        console.log('Sending payload:', JSON.stringify(payload, null, 2));
 
         try {
             const result = await apiFetch('/invoice/create-invoice/', {
@@ -289,7 +334,6 @@ export default function Billing() {
         if (currentItem.type === 'service') {
             itemDetails = services.find(s => s.id === parseInt(currentItem.id));
             if (itemDetails) {
-                // Check if service already in cart
                 const existingIndex = cartItems.findIndex(item => item.type === 'service' && item.id === itemDetails.id);
                 if (existingIndex !== -1) {
                     Swal.fire({
@@ -312,7 +356,6 @@ export default function Billing() {
         } else {
             itemDetails = products.find(p => p.id === parseInt(currentItem.id));
             if (itemDetails) {
-                // Check if product already in cart
                 const existingIndex = cartItems.findIndex(item => item.type === 'product' && item.id === itemDetails.id);
                 if (existingIndex !== -1) {
                     Swal.fire({
@@ -348,6 +391,8 @@ export default function Billing() {
     };
 
     const calculateSubtotal = () => {
+        // For appointment billing, only calculate from additional products
+        // Backend will add appointment items total
         return cartItems.reduce((sum, item) => sum + item.total, 0);
     };
 
@@ -382,6 +427,7 @@ export default function Billing() {
             address: '',
         });
         setCartItems([]);
+        setSelectedAppointmentData(null);
         setBillingType('direct');
         setCurrentItem({ 
             type: 'service', 
@@ -410,6 +456,147 @@ export default function Billing() {
         return colors[method] || 'bg-gray-100 text-gray-800';
     };
 
+    // PDF Generation Function
+    const generatePDF = (invoice) => {
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Invoice #${invoice.id}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 40px; }
+                        .header { text-align: center; margin-bottom: 30px; }
+                        .invoice-title { color: #dba627; font-size: 28px; margin-bottom: 10px; }
+                        .company-info { margin-bottom: 20px; }
+                        .invoice-details { margin-bottom: 30px; }
+                        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+                        th { background-color: #f5f5f5; font-weight: bold; }
+                        .total-section { text-align: right; margin-top: 20px; }
+                        .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #666; }
+                        .branch-info { background-color: #f9f9f9; padding: 10px; margin-bottom: 20px; border-radius: 5px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <div class="invoice-title">INVOICE</div>
+                        <div class="company-info">
+                            <h3>Devine Salon</h3>
+                            ${branchInfo ? `
+                                <p>${branchInfo.name}</p>
+                                <p>${branchInfo.address}, ${branchInfo.city}</p>
+                                <p>Phone: ${branchInfo.phone || 'N/A'} | Email: ${branchInfo.email || 'N/A'}</p>
+                                <p>GST: ${branchInfo.gst_number || 'N/A'}</p>
+                            ` : '<p>Your Salon Address Here</p>'}
+                        </div>
+                    </div>
+                    <div class="branch-info">
+                        <p><strong>Branch:</strong> ${branchInfo?.name || 'N/A'} | <strong>Location:</strong> ${branchInfo?.city || 'N/A'}</p>
+                    </div>
+                    <div class="invoice-details">
+                        <p><strong>Invoice ID:</strong> #${invoice.id}</p>
+                        <p><strong>Date:</strong> ${formatDate(invoice.created_at)}</p>
+                        <p><strong>Payment Method:</strong> ${invoice.payment_method?.toUpperCase()}</p>
+                        <p><strong>Served By:</strong> ${invoice.served_by?.name}</p>
+                        <p><strong>Customer Name:</strong> ${invoice.customer?.name}</p>
+                        <p><strong>Customer Phone:</strong> ${invoice.customer?.phone}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Type</th>
+                                <th>Quantity</th>
+                                <th>Price</th>
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${invoice.items?.map(item => `
+                                <tr>
+                                    <td>${item.service_name || item.product_name}</td>
+                                    <td>${item.item_type}</td>
+                                    <td>${item.quantity}</td>
+                                    <td>₹${item.price}</td>
+                                    <td>₹${item.total}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="4" style="text-align: right;"><strong>Subtotal:</strong></td>
+                                <td>₹${invoice.subtotal}</td>
+                            </tr>
+                            ${parseFloat(invoice.discount) > 0 ? `
+                            <tr>
+                                <td colspan="4" style="text-align: right;"><strong>Discount (${invoice.discount_type === 'percent' ? `${invoice.discount}%` : '₹'}):</strong></td>
+                                <td>- ₹${invoice.discount}</td>
+                            </tr>
+                            ` : ''}
+                            <tr>
+                                <td colspan="4" style="text-align: right;"><strong>Total:</strong></td>
+                                <td><strong>₹${invoice.total_amount}</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <div class="footer">
+                        <p>Thank you for choosing Devine Salon!</p>
+                        <p>For any queries, please contact us at ${branchInfo?.phone || 'your salon phone'}</p>
+                    </div>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+    };
+
+    // Print Function
+    const handlePrint = (invoice) => {
+        generatePDF(invoice);
+    };
+
+    // WhatsApp Send Function
+    const sendWhatsApp = (invoice) => {
+        const message = `🏢 *DEVINE SALON* 🏢\n\n` +
+                       `📄 *INVOICE DETAILS*\n\n` +
+                       `🧾 *Invoice ID:* #${invoice.id}\n` +
+                       `📅 *Date:* ${formatDate(invoice.created_at)}\n` +
+                       `👤 *Customer:* ${invoice.customer?.name}\n` +
+                       `📞 *Phone:* ${invoice.customer?.phone}\n` +
+                       `💰 *Total Amount:* ₹${invoice.total_amount}\n` +
+                       `💳 *Payment Method:* ${invoice.payment_method?.toUpperCase()}\n\n` +
+                       `${branchInfo ? `🏪 *Branch:* ${branchInfo.name}\n📍 *Location:* ${branchInfo.city}\n📞 *Branch Phone:* ${branchInfo.phone || 'N/A'}\n\n` : ''}` +
+                       `✨ Thank you for choosing Devine Salon! ✨\n` +
+                       `We look forward to serving you again!`;
+        
+        const phoneNumber = invoice.customer?.phone;
+        if (phoneNumber) {
+            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Customer phone number not found!',
+                confirmButtonColor: '#dba627'
+            });
+        }
+    };
+
+    // Filter and Pagination Logic
+    const filteredInvoices = invoices.filter(invoice => 
+        invoice.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        invoice.id?.toString().includes(searchTerm) ||
+        invoice.customer?.phone?.includes(searchTerm)
+    );
+
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentInvoices = filteredInvoices.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
+
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
     return (
         <DashboardLayout>
             <div>
@@ -424,7 +611,7 @@ export default function Billing() {
                         </p>
                     </div>
 
-                    {/* Create Invoice Button (moved here) */}
+                    {/* Create Invoice Button */}
                     <button
                         onClick={() => {
                             resetForm();
@@ -437,6 +624,20 @@ export default function Billing() {
                         </svg>
                         Create Invoice
                     </button>
+                </div>
+
+                {/* Search Bar */}
+                <div className="mb-4">
+                    <input
+                        type="text"
+                        placeholder="Search by invoice ID, customer name, or phone..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                        className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                    />
                 </div>
 
                 {/* Create Invoice Form Modal */}
@@ -526,10 +727,28 @@ export default function Billing() {
                                                         <option value="">Select Appointment</option>
                                                         {appointments.map(app => (
                                                             <option key={app.id} value={app.id}>
-                                                                #{app.id} - {app.customer_name} - {app.date}
+                                                                #{app.id} - {app.customer_name} - {app.date} (Items: {app.items?.length || 0})
                                                             </option>
                                                         ))}
                                                     </select>
+                                                    {selectedAppointmentData && (
+                                                        <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                                                            <p className="text-xs font-semibold text-blue-800 mb-2">Appointment Items (Auto-included):</p>
+                                                            {selectedAppointmentData.items?.map((item, idx) => (
+                                                                <div key={idx} className="text-xs text-gray-700 flex justify-between">
+                                                                    <span>{item.service_name}</span>
+                                                                    <span>₹{item.price}</span>
+                                                                </div>
+                                                            ))}
+                                                            <div className="mt-2 pt-2 border-t border-blue-200 text-xs font-semibold text-blue-800 flex justify-between">
+                                                                <span>Appointment Total:</span>
+                                                                <span>₹{selectedAppointmentData.items?.reduce((sum, item) => sum + parseFloat(item.price), 0).toFixed(2)}</span>
+                                                            </div>
+                                                            <p className="text-xs text-gray-500 mt-2 italic">
+                                                                Note: Service lines come from the appointment automatically. Add only extra products manually if needed.
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <div>
@@ -728,12 +947,13 @@ export default function Billing() {
 
                                         {/* Right Column - Cart Items */}
                                         <div>
-                                            <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">Items</h3>
+                                            <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">
+                                                {billingType === 'appointment' ? 'Additional Products (Optional)' : 'Items'}
+                                            </h3>
 
-                                            {/* Add Item */}
+                                            {/* Add Item - Optional for appointment billing */}
                                             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    {/* Only show Item Type selector for non-appointment billing */}
                                                     {billingType !== 'appointment' && (
                                                         <div>
                                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
@@ -750,14 +970,13 @@ export default function Billing() {
                                                         </div>
                                                     )}
                                                     
-                                                    {/* For appointment billing, show product only label */}
                                                     {billingType === 'appointment' && (
                                                         <div>
                                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                                 Item Type
                                                             </label>
                                                             <div className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-gray-100 text-sm text-gray-600 flex items-center">
-                                                                Product Only
+                                                                Product Only (Optional)
                                                             </div>
                                                         </div>
                                                     )}
@@ -777,7 +996,7 @@ export default function Billing() {
                                                     </div>
                                                     <div className={billingType === 'appointment' ? "col-span-2" : "col-span-2"}>
                                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                            Select {billingType === 'appointment' ? 'Product' : (currentItem.type === 'service' ? 'Service' : 'Product')}
+                                                            Select {billingType === 'appointment' ? 'Product' : (currentItem.type === 'service' ? 'Service' : 'Product')} {billingType === 'appointment' && '(Optional)'}
                                                         </label>
                                                         <select
                                                             value={currentItem.id}
@@ -787,7 +1006,6 @@ export default function Billing() {
                                                             <option value="">
                                                                 Select {billingType === 'appointment' ? 'Product' : (currentItem.type === 'service' ? 'Service' : 'Product')}
                                                             </option>
-                                                            {/* For appointment billing, only show products */}
                                                             {billingType === 'appointment' ? (
                                                                 products.map(item => (
                                                                     <option key={item.id} value={item.id}>
@@ -817,12 +1035,19 @@ export default function Billing() {
                                                 >
                                                     Add to Cart
                                                 </button>
+                                                {billingType === 'appointment' && (
+                                                    <p className="text-xs text-gray-500 mt-2 text-center italic">
+                                                        Note: When billing an appointment, service lines come from the appointment automatically. Add only extra products manually.
+                                                    </p>
+                                                )}
                                             </div>
 
-                                            {/* Cart Items List */}
+                                            {/* Cart Items List - Only for additional products in appointment billing */}
                                             {cartItems.length > 0 && (
                                                 <div className="mt-4">
-                                                    <h4 className="font-semibold text-gray-900 mb-2 text-sm">Cart Items</h4>
+                                                    <h4 className="font-semibold text-gray-900 mb-2 text-sm">
+                                                        {billingType === 'appointment' ? 'Additional Products' : 'Cart Items'}
+                                                    </h4>
                                                     <div className="space-y-2 max-h-80 overflow-y-auto">
                                                         {cartItems.map((item, index) => (
                                                             <div key={index} className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
@@ -842,23 +1067,39 @@ export default function Billing() {
                                                             </div>
                                                         ))}
                                                     </div>
+                                                </div>
+                                            )}
 
-                                                    {/* Cart Summary */}
-                                                    <div className="mt-4 pt-3 border-t border-gray-200">
-                                                        <div className="flex justify-between mb-2">
-                                                            <span className="text-sm text-gray-600">Subtotal:</span>
-                                                            <span className="font-semibold text-gray-900">₹{calculateSubtotal().toFixed(2)}</span>
-                                                        </div>
-                                                        {parseFloat(formData.discount) > 0 && (
-                                                            <div className="flex justify-between mb-2 text-red-600">
-                                                                <span className="text-sm">Discount ({formData.discount_type === 'percent' ? `${formData.discount}%` : '₹'}):</span>
-                                                                <span>- ₹{calculateDiscount(calculateSubtotal()).toFixed(2)}</span>
+                                            {/* Cart Summary */}
+                                            {(cartItems.length > 0 || (billingType === 'appointment' && selectedAppointmentData)) && (
+                                                <div className="mt-4 pt-3 border-t border-gray-200">
+                                                    {billingType === 'appointment' && selectedAppointmentData && (
+                                                        <div className="mb-3">
+                                                            <div className="flex justify-between mb-2 text-sm">
+                                                                <span className="text-gray-600">Appointment Items:</span>
+                                                                <span className="font-semibold text-gray-900">₹{selectedAppointmentData.items?.reduce((sum, item) => sum + parseFloat(item.price), 0).toFixed(2)}</span>
                                                             </div>
-                                                        )}
-                                                        <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200">
-                                                            <span>Total:</span>
-                                                            <span className="text-[#dba627]">₹{calculateTotal().toFixed(2)}</span>
+                                                            {cartItems.length > 0 && (
+                                                                <div className="flex justify-between mb-2 text-sm">
+                                                                    <span className="text-gray-600">Additional Products:</span>
+                                                                    <span className="font-semibold text-gray-900">₹{cartItems.reduce((sum, item) => sum + item.total, 0).toFixed(2)}</span>
+                                                                </div>
+                                                            )}
                                                         </div>
+                                                    )}
+                                                    <div className="flex justify-between mb-2">
+                                                        <span className="text-sm text-gray-600">Subtotal:</span>
+                                                        <span className="font-semibold text-gray-900">₹{calculateSubtotal().toFixed(2)}</span>
+                                                    </div>
+                                                    {parseFloat(formData.discount) > 0 && (
+                                                        <div className="flex justify-between mb-2 text-red-600">
+                                                            <span className="text-sm">Discount ({formData.discount_type === 'percent' ? `${formData.discount}%` : '₹'}):</span>
+                                                            <span>- ₹{calculateDiscount(calculateSubtotal()).toFixed(2)}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex justify-between text-base font-bold pt-2 border-t border-gray-200">
+                                                        <span>Total:</span>
+                                                        <span className="text-[#dba627]">₹{calculateTotal().toFixed(2)}</span>
                                                     </div>
                                                 </div>
                                             )}
@@ -879,7 +1120,7 @@ export default function Billing() {
                                         </button>
                                         <button
                                             type="submit"
-                                            disabled={loading || cartItems.length === 0}
+                                            disabled={loading || (billingType !== 'appointment' && cartItems.length === 0)}
                                             className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
                                         >
                                             {loading ? 'Creating...' : 'Create Invoice'}
@@ -919,6 +1160,20 @@ export default function Billing() {
                             {/* BODY */}
                             <div className="overflow-y-auto px-6 py-5">
                                 <div className="space-y-5">
+                                    {/* Branch Info Banner */}
+                                    {branchInfo && (
+                                        <div className="bg-gradient-to-r from-[#dba627]/10 to-transparent p-4 rounded-lg border border-[#dba627]/20">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <svg className="w-5 h-5 text-[#dba627]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                                </svg>
+                                                <h3 className="font-semibold text-gray-800">Devine Salon - {branchInfo.name}</h3>
+                                            </div>
+                                            <p className="text-sm text-gray-600">{branchInfo.address}, {branchInfo.city}</p>
+                                            <p className="text-xs text-gray-500 mt-1">Phone: {branchInfo.phone || 'N/A'} | GST: {branchInfo.gst_number || 'N/A'}</p>
+                                        </div>
+                                    )}
+
                                     {/* Invoice Header */}
                                     <div className="bg-gray-50 p-4 rounded-lg">
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -955,9 +1210,21 @@ export default function Billing() {
                                     <div className="grid grid-cols-1 gap-5">
                                         <div className="border border-gray-200 p-4 rounded-lg">
                                             <h3 className="text-sm font-semibold text-gray-900 mb-2">Customer Information</h3>
-                                            <p className="text-sm text-gray-700"><span className="text-gray-500">Name:</span> {selectedInvoice.customer?.name}</p>
-                                            <p className="text-sm text-gray-700"><span className="text-gray-500">Phone:</span> {selectedInvoice.customer?.phone}</p>
-                                            <p className="text-sm text-gray-700"><span className="text-gray-500">Email:</span> {selectedInvoice.customer?.email || 'N/A'}</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <div>
+                                                    <p className="text-sm text-gray-700">
+                                                        <span className="text-gray-500">Name:</span> {selectedInvoice.customer?.name}
+                                                    </p>
+                                                    <p className="text-sm text-gray-700">
+                                                        <span className="text-gray-500">Phone:</span> {selectedInvoice.customer?.phone}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-700">
+                                                        <span className="text-gray-500">Email:</span> {selectedInvoice.customer?.email || 'N/A'}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -1013,9 +1280,12 @@ export default function Billing() {
                             {/* FOOTER */}
                             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
                                 <button
-                                    onClick={() => window.print()}
-                                    className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
+                                    onClick={() => handlePrint(selectedInvoice)}
+                                    className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50 flex items-center gap-2"
                                 >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
                                     Print
                                 </button>
                                 <button
@@ -1037,85 +1307,140 @@ export default function Billing() {
                     <div className="flex justify-center items-center h-64">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#dba627]"></div>
                     </div>
-                ) : invoices.length === 0 ? (
+                ) : currentInvoices.length === 0 ? (
                     <div className="text-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
                         <p className="text-gray-500">No invoices found. Click Create Invoice to create one.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200">
-                        <table className="w-full">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice ID</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Items</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment</th>
-                                    <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                                    <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {invoices.map((invoice, index) => (
-                                    <tr key={invoice.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4 text-sm text-gray-500 font-medium">{index + 1}</td>
-                                        <td className="px-6 py-4">
-                                            <span className="text-sm font-semibold text-gray-900">#{invoice.id}</span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div>
-                                                <p className="text-sm font-semibold text-gray-900">{invoice.customer?.name}</p>
-                                                <p className="text-xs text-gray-400">{invoice.customer?.phone}</p>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="text-sm text-gray-600">{formatDate(invoice.created_at)}</span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-wrap gap-1">
-                                                {invoice.items?.slice(0, 2).map((item, idx) => (
-                                                    <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                                                        {item.service_name || item.product_name}
-                                                    </span>
-                                                ))}
-                                                {invoice.items?.length > 2 && (
-                                                    <span className="text-xs text-gray-500">
-                                                        +{invoice.items.length - 2}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${getPaymentMethodBadge(invoice.payment_method)}`}>
-                                                {invoice.payment_method?.toUpperCase()}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <span className="text-sm font-bold text-[#dba627]">₹{invoice.total_amount}</span>
-                                            {parseFloat(invoice.discount) > 0 && (
-                                                <div className="text-xs text-green-600">-{invoice.discount}{invoice.discount_type === 'percent' ? '%' : ' ₹'}</div>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => fetchInvoiceDetails(invoice.id)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                                                    title="View Details"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </td>
+                    <>
+                        <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Items</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment</th>
+                                        <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                                        <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {currentInvoices.map((invoice, index) => (
+                                        <tr key={invoice.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm font-semibold text-gray-900">{indexOfFirstItem + index + 1}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-gray-900">
+                                                        <span className="text-gray-500">Name:</span> {invoice.customer?.name}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-0.5">
+                                                        <span className="text-gray-400">Phone:</span> {invoice.customer?.phone}
+                                                    </p>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm text-gray-600">{formatDate(invoice.created_at)}</span>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {invoice.items?.slice(0, 2).map((item, idx) => (
+                                                        <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                                                            {item.service_name || item.product_name}
+                                                        </span>
+                                                    ))}
+                                                    {invoice.items?.length > 2 && (
+                                                        <span className="text-xs text-gray-500">
+                                                            +{invoice.items.length - 2}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${getPaymentMethodBadge(invoice.payment_method)}`}>
+                                                    {invoice.payment_method?.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <span className="text-sm font-bold text-[#dba627]">₹{invoice.total_amount}</span>
+                                                {parseFloat(invoice.discount) > 0 && (
+                                                    <div className="text-xs text-green-600">-{invoice.discount}{invoice.discount_type === 'percent' ? '%' : ' ₹'}</div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => fetchInvoiceDetails(invoice.id)}
+                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                                        title="View Details"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handlePrint(invoice)}
+                                                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                                                        title="Print Invoice"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => sendWhatsApp(invoice)}
+                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors cursor-pointer"
+                                                        title="Send via WhatsApp"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-2 mt-6">
+                                <button
+                                    onClick={() => paginate(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Previous
+                                </button>
+                                {[...Array(totalPages)].map((_, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => paginate(index + 1)}
+                                        className={`px-3 py-1 rounded ${
+                                            currentPage === index + 1
+                                                ? 'bg-[#dba627] text-white'
+                                                : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        {index + 1}
+                                    </button>
                                 ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                <button
+                                    onClick={() => paginate(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </DashboardLayout>

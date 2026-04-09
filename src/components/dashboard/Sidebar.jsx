@@ -33,6 +33,7 @@ const roleMenus = {
         { name: "Appointments", icon: MdCalendarToday, path: "/dashboard/admin/appointments", hasSub: false },
         { name: "Services", icon: MdContentCut, path: "/dashboard/admin/services", hasSub: false },
         { name: "Staff", icon: MdPeopleOutline, path: "/dashboard/admin/staff", hasSub: false },
+        { name: "Customers", icon: MdPersonOutline, path: "/dashboard/admin/customer", hasSub: false },
         { name: "Branch", icon: MdQueue, path: "/dashboard/admin/branch", hasSub: false },
         { name: "Packages", icon: MdInventory2, path: "/dashboard/admin/packages", hasSub: false },
         { name: "Products", icon: MdShoppingBag, path: "/dashboard/admin/products", hasSub: false },
@@ -178,7 +179,7 @@ export default function Sidebar({ sidebarCollapsed = false, userRole = "manager"
 
             {/* Bottom Actions */}
             <div className="px-4 py-6 border-t border-[#dba627]/20 space-y-1.5">
-                {userRole !== "customer" && !sidebarCollapsed && (
+               
                     <button
                         onClick={handleSettingsClick}
                         className="w-full flex items-center gap-3 px-4 py-2.5 text-offwhite/70 hover:text-white hover:bg-white/5 rounded-xl transition-all duration-300 group"
@@ -186,7 +187,7 @@ export default function Sidebar({ sidebarCollapsed = false, userRole = "manager"
                         <MdSettings size={20} className="text-offwhite/50 group-hover:text-[#dba627] transition-colors" />
                         <span className="text-[14px] font-medium">Settings</span>
                     </button>
-                )}
+
 
                 <LogoutButton collapsed={sidebarCollapsed} />
             </div>
