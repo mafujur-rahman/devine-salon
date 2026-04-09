@@ -51,6 +51,24 @@ export default function LoginPage() {
                 localStorage.setItem("token", data.token);
                 localStorage.setItem("role", data.role);
                 
+                // Store branch_id if available in response
+                // Try different possible response structures
+                if (data.branch_id) {
+                    localStorage.setItem("branch_id", data.branch_id);
+                    console.log("Branch ID stored:", data.branch_id);
+                } else if (data.branch && data.branch.id) {
+                    localStorage.setItem("branch_id", data.branch.id);
+                    console.log("Branch ID stored from branch object:", data.branch.id);
+                } else if (data.user && data.user.branch_id) {
+                    localStorage.setItem("branch_id", data.user.branch_id);
+                    console.log("Branch ID stored from user object:", data.user.branch_id);
+                } else if (data.branchId) {
+                    localStorage.setItem("branch_id", data.branchId);
+                    console.log("Branch ID stored:", data.branchId);
+                } else {
+                    console.warn("No branch_id found in login response:", data);
+                }
+                
                 // Set default authorization header for all future axios requests
                 axios.defaults.headers.common['Authorization'] = `Token ${data.token}`;
                 
@@ -98,7 +116,7 @@ export default function LoginPage() {
                 <div className="bg-white/5 backdrop-blur-sm border border-[#dba627]/20 rounded-2xl shadow-2xl p-8">
                     {/* Logo */}
                     <div className="flex justify-center mb-8">
-                        <Link href="/" className="flex items-center gap-3">
+                        <div  className="flex items-center gap-3">
                             <div className="relative">
                                 <div className="absolute inset-0 bg-[#dba627] rounded-xl blur-lg opacity-50"></div>
                                 <div className="relative w-14 h-14 bg-white rounded-xl overflow-hidden shadow-lg">
@@ -116,7 +134,7 @@ export default function LoginPage() {
                                 <h1 className="text-2xl font-bold text-white tracking-tight">Devine</h1>
                                 <p className="text-xs text-[#dba627] font-medium">Salon Management System</p>
                             </div>
-                        </Link>
+                        </div>
                     </div>
 
                     {/* Welcome Text */}
@@ -192,4 +210,4 @@ export default function LoginPage() {
             </div>
         </div>
     );
-} 
+}

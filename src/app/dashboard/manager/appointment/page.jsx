@@ -8,6 +8,10 @@ import axios from "axios";
 
 const API_BASE = "https://saloon.mrshakil.com/api";
 
+// Define the status flow order
+const STATUS_FLOW = ['booked', 'approved', 'in_progress', 'completed'];
+const CANCELLABLE_STATUSES = ['booked', 'approved', 'in_progress'];
+
 export default function Appointments() {
     const router = useRouter();
     const [appointments, setAppointments] = useState([]);
@@ -195,23 +199,64 @@ export default function Appointments() {
         }
     };
 
-    const handleUpdateStatus = async (e) => {
-        e.preventDefault();
+    // Get next status in flow
+    const getNextStatus = (currentStatus) => {
+        const currentIndex = STATUS_FLOW.indexOf(currentStatus);
+        if (currentIndex !== -1 && currentIndex < STATUS_FLOW.length - 1) {
+            return STATUS_FLOW[currentIndex + 1];
+        }
+        return null;
+    };
+
+    // Get previous status
+    const getPreviousStatus = (currentStatus) => {
+        const currentIndex = STATUS_FLOW.indexOf(currentStatus);
+        if (currentIndex > 0) {
+            return STATUS_FLOW[currentIndex - 1];
+        }
+        return null;
+    };
+
+    // Sequential status update handler
+    const handleSequentialUpdate = async (appointment, targetStatus) => {
         setLoading(true);
         try {
-            const response = await axios.put(`${API_BASE}/appointment/${selectedAppointment.id}/update-status/`, statusUpdateData);
+            const response = await axios.put(`${API_BASE}/appointment/${appointment.id}/update-status/`, { status: targetStatus });
             
             if (response.data.success) {
+                // Show success message
                 Swal.fire({
                     icon: 'success',
-                    title: 'Success!',
-                    text: 'Appointment status updated successfully!',
-                    confirmButtonColor: '#dba627'
+                    title: 'Status Updated!',
+                    text: `Appointment status changed to ${targetStatus.toUpperCase()}`,
+                    confirmButtonColor: '#dba627',
+                    timer: 1500,
+                    showConfirmButton: false
                 });
-                setShowUpdateStatusModal(false);
-                fetchAppointments();
-                if (showDetailsModal) {
-                    fetchAppointmentDetails(selectedAppointment.id);
+                
+                // Refresh data
+                await fetchAppointments();
+                if (showDetailsModal && selectedAppointment?.id === appointment.id) {
+                    await fetchAppointmentDetails(appointment.id);
+                }
+                
+                // If not completed, ask for next action
+                if (targetStatus !== 'completed' && getNextStatus(targetStatus)) {
+                    const nextStatus = getNextStatus(targetStatus);
+                    const result = await Swal.fire({
+                        title: 'Next Action',
+                        text: `Do you want to move to ${nextStatus.toUpperCase()}?`,
+                        icon: 'question',
+                        showCancelButton: true,
+                        confirmButtonText: 'Yes, Next',
+                        cancelButtonText: 'No, Stay Here',
+                        confirmButtonColor: '#dba627',
+                        cancelButtonColor: '#333'
+                    });
+                    
+                    if (result.isConfirmed) {
+                        await handleSequentialUpdate(appointment, nextStatus);
+                    }
                 }
             }
         } catch (error) {
@@ -224,6 +269,73 @@ export default function Appointments() {
             });
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Handle cancel appointment
+    const handleCancelAppointment = async (appointment) => {
+        const result = await Swal.fire({
+            title: 'Cancel Appointment',
+            text: 'Are you sure you want to cancel this appointment?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Cancel',
+            cancelButtonText: 'No, Go Back',
+            confirmButtonColor: '#dba627',
+            cancelButtonColor: '#333'
+        });
+
+        if (result.isConfirmed) {
+            setLoading(true);
+            try {
+                const response = await axios.put(`${API_BASE}/appointment/${appointment.id}/update-status/`, { status: 'cancelled' });
+                
+                if (response.data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Cancelled!',
+                        text: 'Appointment has been cancelled.',
+                        confirmButtonColor: '#dba627',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                    
+                    await fetchAppointments();
+                    if (showDetailsModal && selectedAppointment?.id === appointment.id) {
+                        setShowDetailsModal(false);
+                        setSelectedAppointment(null);
+                    }
+                }
+            } catch (error) {
+                console.error('Error cancelling appointment:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.response?.data?.message || 'Failed to cancel appointment',
+                    confirmButtonColor: '#dba627'
+                });
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    // Quick status update with one click
+    const handleQuickStatusUpdate = async (appointment) => {
+        const nextStatus = getNextStatus(appointment.status);
+        
+        if (nextStatus) {
+            await handleSequentialUpdate(appointment, nextStatus);
+        } else if (appointment.status === 'completed') {
+            Swal.fire({
+                icon: 'info',
+                title: 'Already Completed',
+                text: 'This appointment is already completed.',
+                confirmButtonColor: '#dba627'
+            });
+        } else {
+            // If no next status defined, show full status menu
+            openUpdateStatusModal(appointment);
         }
     };
 
@@ -317,7 +429,6 @@ export default function Appointments() {
         if (serviceInput) {
             const service = services.find(s => s.id === parseInt(serviceInput));
             if (service) {
-                // Check if service already added
                 if (selectedServices.some(s => s.service === service.id)) {
                     Swal.fire({
                         icon: 'warning',
@@ -336,7 +447,7 @@ export default function Appointments() {
                 };
                 
                 setSelectedServices([...selectedServices, newService]);
-                setServiceInput(''); // Reset the select input
+                setServiceInput('');
             }
         } else {
             Swal.fire({
@@ -392,10 +503,44 @@ export default function Appointments() {
         return colors[status] || 'bg-gray-100 text-gray-800';
     };
 
-    const openUpdateStatus = (appointment) => {
+    const openUpdateStatusModal = (appointment) => {
         setSelectedAppointment(appointment);
         setStatusUpdateData({ status: appointment.status });
         setShowUpdateStatusModal(true);
+    };
+
+    const handleUpdateStatus = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            const response = await axios.put(`${API_BASE}/appointment/${selectedAppointment.id}/update-status/`, statusUpdateData);
+            
+            if (response.data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: 'Appointment status updated successfully!',
+                    confirmButtonColor: '#dba627',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                setShowUpdateStatusModal(false);
+                fetchAppointments();
+                if (showDetailsModal && selectedAppointment?.id === selectedAppointment.id) {
+                    fetchAppointmentDetails(selectedAppointment.id);
+                }
+            }
+        } catch (error) {
+            console.error('Error updating status:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.response?.data?.message || 'Failed to update status',
+                confirmButtonColor: '#dba627'
+            });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleEditNotes = async () => {
@@ -425,7 +570,6 @@ export default function Appointments() {
         return 0;
     };
 
-    // Check if form is valid for submission
     const isFormValid = () => {
         if (customerType === 'existing') {
             return formData.customer && formData.staff && formData.date && formData.time && selectedServices.length > 0;
@@ -463,7 +607,6 @@ export default function Appointments() {
                 {showCreateForm && (
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                         <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-xl flex flex-col">
-                            {/* HEADER */}
                             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                                 <div>
                                     <h2 className="text-lg font-semibold text-gray-900">
@@ -484,10 +627,8 @@ export default function Appointments() {
                                 </button>
                             </div>
 
-                            {/* BODY */}
                             <div className="overflow-y-auto px-6 py-5">
                                 <form onSubmit={handleCreateAppointment}>
-                                    {/* Customer Type Selection */}
                                     <div className="mb-6">
                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                             Customer Type *
@@ -517,7 +658,6 @@ export default function Appointments() {
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                        {/* Customer Information */}
                                         {customerType === 'existing' ? (
                                             <div className="md:col-span-2">
                                                 <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
@@ -638,7 +778,6 @@ export default function Appointments() {
                                             </>
                                         )}
 
-                                        {/* Appointment Details */}
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Staff Member *
@@ -713,7 +852,6 @@ export default function Appointments() {
                                             />
                                         </div>
 
-                                        {/* Services Selection - REQUIRED */}
                                         <div className="md:col-span-2">
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Services * 
@@ -739,7 +877,6 @@ export default function Appointments() {
                                                     Add
                                                 </button>
                                             </div>
-                                            
                                             
                                             {selectedServices.length > 0 && (
                                                 <>
@@ -773,7 +910,6 @@ export default function Appointments() {
                                         </div>
                                     </div>
 
-                                    {/* FOOTER */}
                                     <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
                                         <button
                                             type="button"
@@ -840,12 +976,22 @@ export default function Appointments() {
                                                 {selectedAppointment.status?.toUpperCase()}
                                             </span>
                                             {selectedAppointment.status !== 'completed' && selectedAppointment.status !== 'cancelled' && (
-                                                <button
-                                                    onClick={() => openUpdateStatus(selectedAppointment)}
-                                                    className="text-[#dba627] hover:text-black text-xs font-medium"
-                                                >
-                                                    Update Status
-                                                </button>
+                                                <div className="flex gap-1">
+                                                    <button
+                                                        onClick={() => handleQuickStatusUpdate(selectedAppointment)}
+                                                        className="text-[#dba627] hover:text-black text-xs font-medium px-2 py-1 rounded border border-[#dba627] hover:bg-[#dba627] hover:text-white transition-colors"
+                                                        title="Next Status"
+                                                    >
+                                                        Next →
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleCancelAppointment(selectedAppointment)}
+                                                        className="text-red-600 hover:text-red-700 text-xs font-medium px-2 py-1 rounded border border-red-600 hover:bg-red-600 hover:text-white transition-colors"
+                                                        title="Cancel"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -931,7 +1077,7 @@ export default function Appointments() {
                     </div>
                 )}
 
-                {/* Update Status Modal */}
+                {/* Update Status Modal (Full Menu) */}
                 {showUpdateStatusModal && selectedAppointment && (
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                         <div className="w-full max-w-md max-h-[90vh] overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-xl flex flex-col">
@@ -1018,6 +1164,8 @@ export default function Appointments() {
                             <tbody className="divide-y divide-gray-100">
                                 {appointments.map((appointment, index) => {
                                     const branch = branches.find(b => b.id === appointment.branch);
+                                    const nextStatus = getNextStatus(appointment.status);
+                                    const canCancel = CANCELLABLE_STATUSES.includes(appointment.status);
 
                                     return (
                                         <tr key={appointment.id} className="hover:bg-gray-50 transition-colors">
@@ -1071,15 +1219,28 @@ export default function Appointments() {
                                                     </button>
                                                     {appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
                                                         <>
-                                                            <button
-                                                                onClick={() => openUpdateStatus(appointment)}
-                                                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                                title="Update Status"
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                                </svg>
-                                                            </button>
+                                                            {nextStatus && (
+                                                                <button
+                                                                    onClick={() => handleQuickStatusUpdate(appointment)}
+                                                                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                                    title={`Move to ${nextStatus.toUpperCase()}`}
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                            {canCancel && (
+                                                                <button
+                                                                    onClick={() => handleCancelAppointment(appointment)}
+                                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                    title="Cancel"
+                                                                >
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
                                                             <button
                                                                 onClick={() => handleDeleteAppointment(appointment.id)}
                                                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"

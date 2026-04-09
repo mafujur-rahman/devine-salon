@@ -151,11 +151,7 @@ export default function Topbar({ onMenuToggle, sidebarCollapsed, userRole = "man
                 )}
             </div>
 
-            <Profile 
-                isOpen={showProfileModal}
-                onClose={() => setShowProfileModal(false)}
-                onUserDataUpdate={setUserData}
-            />
+            
 
             <style jsx global>{`
                 @keyframes slideDown {

@@ -7,9 +7,22 @@ import DashboardLayout from "@/app/page";
 
 const API_BASE = "https://saloon.mrshakil.com/api";
 
-// Helper for authenticated requests
+// Helper for authenticated requests with automatic branch_id injection
 async function apiFetch(endpoint, options = {}) {
     const token = localStorage.getItem("token");
+    const branchId = localStorage.getItem("branch_id");
+
+    // Parse the body if it exists
+    let body = options.body;
+    if (body && typeof body === 'string') {
+        body = JSON.parse(body);
+    }
+
+    // Add branch_id to the body if it exists and is not already present
+    if (branchId && body && !body.branch && !body.branch_id) {
+        body.branch = parseInt(branchId);
+        console.log(`Auto-injecting branch_id ${branchId} to ${endpoint}`);
+    }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
@@ -18,11 +31,12 @@ async function apiFetch(endpoint, options = {}) {
             "Authorization": `Token ${token}`,
             ...options.headers,
         },
+        body: body ? JSON.stringify(body) : undefined,
     });
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "API request failed");
+        throw new Error(error.message || error.branch?.[0] || "API request failed");
     }
 
     return response.json();
@@ -53,22 +67,37 @@ export default function Products() {
     });
 
     useEffect(() => {
-        checkAuth();
+        checkAuthAndBranch();
         fetchProducts();
         fetchCategories();
     }, []);
 
-    const checkAuth = () => {
+    const checkAuthAndBranch = () => {
         const token = localStorage.getItem("token");
         const role = localStorage.getItem("role");
+        const branchId = localStorage.getItem("branch_id");
 
-        if (!token) {
+        if (!token || !role) {
+            console.error("No token or role found");
             router.push("/login");
+            return false;
         }
 
-        if (role !== "manager") {
-            router.push("/login");
+        if (!branchId && (role === "manager" || role === "staff")) {
+            console.error("Branch ID missing for user role:", role);
+            Swal.fire({
+                icon: 'warning',
+                title: 'Missing Branch Information',
+                text: 'Branch information not found. Please login again.',
+                confirmButtonColor: '#dba627'
+            }).then(() => {
+                router.push("/login");
+            });
+            return false;
         }
+
+        console.log("Auth check passed. Branch ID:", branchId);
+        return true;
     };
 
     const fetchProducts = async () => {
@@ -120,9 +149,22 @@ export default function Products() {
 
         setLoading(true);
         try {
+            const branchId = localStorage.getItem("branch_id");
+            
+            if (!branchId) {
+                throw new Error('Branch information not found. Please login again.');
+            }
+
+            const payload = { 
+                name: newCategoryName.trim(),
+                branch: parseInt(branchId)
+            };
+
+            console.log("Creating category with payload:", payload);
+
             const result = await apiFetch('/category/create-category/', {
                 method: 'POST',
-                body: JSON.stringify({ name: newCategoryName.trim() })
+                body: JSON.stringify(payload)
             });
 
             if (result.success) {
@@ -172,9 +214,18 @@ export default function Products() {
 
         setLoading(true);
         try {
+            const branchId = localStorage.getItem("branch_id");
+            
+            const payload = { 
+                name: newCategoryName.trim(),
+                branch: parseInt(branchId)
+            };
+
+            console.log("Updating category with payload:", payload);
+
             const result = await apiFetch(`/category/update-category/${editingCategory.id}/`, {
                 method: 'PUT',
-                body: JSON.stringify({ name: newCategoryName.trim() })
+                body: JSON.stringify(payload)
             });
 
             if (result.success) {
@@ -250,6 +301,12 @@ export default function Products() {
         setLoading(true);
 
         try {
+            const branchId = localStorage.getItem("branch_id");
+            
+            if (!branchId) {
+                throw new Error('Branch information not found. Please login again.');
+            }
+
             const payload = {
                 name: formData.name,
                 brand: formData.brand,
@@ -257,8 +314,11 @@ export default function Products() {
                 selling_price: parseFloat(formData.selling_price),
                 cost_price: parseFloat(formData.cost_price),
                 stock_qty: parseInt(formData.stock_qty),
-                low_stock_alert: parseInt(formData.low_stock_alert)
+                low_stock_alert: parseInt(formData.low_stock_alert),
+                branch: parseInt(branchId)
             };
+
+            console.log("Creating product with payload:", payload);
 
             const result = await apiFetch('/product/create-product/', {
                 method: 'POST',
@@ -295,6 +355,8 @@ export default function Products() {
         e.preventDefault();
         setLoading(true);
         try {
+            const branchId = localStorage.getItem("branch_id");
+            
             const payload = {
                 name: formData.name,
                 brand: formData.brand,
@@ -302,8 +364,11 @@ export default function Products() {
                 selling_price: parseFloat(formData.selling_price),
                 cost_price: parseFloat(formData.cost_price),
                 stock_qty: parseInt(formData.stock_qty),
-                low_stock_alert: parseInt(formData.low_stock_alert)
+                low_stock_alert: parseInt(formData.low_stock_alert),
+                branch: parseInt(branchId)
             };
+
+            console.log("Updating product with payload:", payload);
 
             const result = await apiFetch(`/product/update-product/${editingProduct.id}/`, {
                 method: 'PUT',

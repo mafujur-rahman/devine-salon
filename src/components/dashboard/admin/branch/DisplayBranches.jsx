@@ -117,6 +117,25 @@ const DisplayBranches = ({ refreshTrigger }) => {
         }
     };
 
+    // Helper function to convert time to 12-hour format with AM/PM
+    const formatTimeWithAMPM = (timeString) => {
+        if (!timeString) return null;
+        
+        // Handle different time formats (HH:MM:SS or HH:MM)
+        let hours, minutes;
+        if (timeString.includes(':')) {
+            const parts = timeString.split(':');
+            hours = parseInt(parts[0], 10);
+            minutes = parts[1];
+        } else {
+            return timeString;
+        }
+        
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const hours12 = hours % 12 || 12;
+        return `${hours12}:${minutes} ${ampm}`;
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
@@ -215,8 +234,8 @@ const DisplayBranches = ({ refreshTrigger }) => {
                                     <HiOutlineClock size={18} />
                                 </div>
                                 <span className="text-sm text-gray-600 italic">
-                                    {branch.opening_time
-                                        ? `${branch.opening_time} — ${branch.closing_time}`
+                                    {branch.opening_time && branch.closing_time
+                                        ? `${formatTimeWithAMPM(branch.opening_time)} — ${formatTimeWithAMPM(branch.closing_time)}`
                                         : 'Hours not set'}
                                 </span>
                             </div>

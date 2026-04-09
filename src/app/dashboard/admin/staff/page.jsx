@@ -159,7 +159,11 @@ export default function AdminStaff() {
         try {
             const response = await axios.get(`${API_BASE}/staff/get-all-job-titles/`);
             const jobTitlesData = response.data.data || response.data.job_titles || response.data.results || [];
-            setJobTitles(jobTitlesData);
+            // Filter out job titles with name "manager" (case insensitive)
+            const filteredJobTitles = jobTitlesData.filter(job => 
+                job.name.toLowerCase() !== 'manager'
+            );
+            setJobTitles(filteredJobTitles);
         } catch (error) {
             console.error('Error fetching job titles:', error);
         }
@@ -312,7 +316,7 @@ export default function AdminStaff() {
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: error.response?.data?.message || 'Failed to create staff member',
+                text: error.response?.data?.message || 'Manager already exist, Choose another branch.',
                 confirmButtonColor: '#dba627'
             });
         } finally {
@@ -474,10 +478,10 @@ const handleEditStaff = async () => {
         html: `
             <input id="swal-name" class="swal2-input" placeholder="Full Name" value="${selectedStaff.name || ''}">
             <input id="swal-phone" class="swal2-input" placeholder="Phone Number" value="${selectedStaff.phone || ''}">
-            <input id="swal-email" class="swal2-input" placeholder="Email" value="${selectedStaff.email || ''}">
-            <input id="swal-address" class="swal2-input" placeholder="Address" value="${selectedStaff.address || ''}">
-            <input id="swal-base-salary" class="swal2-input" placeholder="Base Salary" value="${selectedStaff.base_salary || ''}">
-            <input id="swal-commission" class="swal2-input" placeholder="Commission Percentage" value="${selectedStaff.commission_percentage || ''}">
+            <input id="swal-email" class="swal2-input" placeholder="Email Address" value="${selectedStaff.email || ''}">
+            <input id="swal-address" class="swal2-input" placeholder="Complete Address" value="${selectedStaff.address || ''}">
+            <input id="swal-base-salary" class="swal2-input" placeholder="Base Salary (₹)" value="${selectedStaff.base_salary || ''}">
+            <input id="swal-commission" class="swal2-input" placeholder="Commission Percentage (%)" value="${selectedStaff.commission_percentage || ''}">
             <select id="swal-job-title" class="swal2-select">
                 ${jobTitles.map(job => `
                     <option value="${job.id}" ${selectedStaff.job_title === job.id ? 'selected' : ''}>
@@ -594,7 +598,7 @@ return (
             <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                 <div>
                     <h1 className="text-3xl font-bold text-black tracking-tight">
-                        Admin <span className="text-[#dba627]">Staff Management</span>
+                        Staff <span className="text-[#dba627]">Management</span>
                     </h1>
                     <p className="text-gray-500 mt-1">View and manage all staff members across all branches</p>
                 </div>
@@ -864,7 +868,7 @@ return (
                                             onChange={(e) => setJobTitleFormData({ ...jobTitleFormData, name: e.target.value })}
                                             required
                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] focus:border-transparent"
-                                            placeholder="e.g., Stylist, Cashier, Branch Manager"
+                                            placeholder="e.g., Hair Stylist, Beautician, Branch Manager"
                                         />
                                     </div>
 
@@ -963,12 +967,12 @@ return (
                                             onChange={(e) => setStaffFormData({ ...staffFormData, name: e.target.value })}
                                             required
                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            placeholder="Karim"
+                                            placeholder="Enter full name"
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Phone *
+                                            Phone Number *
                                         </label>
                                         <input
                                             type="tel"
@@ -977,12 +981,12 @@ return (
                                             onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
                                             required
                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            placeholder="01888888888"
+                                            placeholder="+91 98765 43210"
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Email *
+                                            Email Address *
                                         </label>
                                         <input
                                             type="email"
@@ -991,7 +995,7 @@ return (
                                             onChange={(e) => setStaffFormData({ ...staffFormData, email: e.target.value })}
                                             required
                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            placeholder="staff@example.com"
+                                            placeholder="name@example.com"
                                         />
                                     </div>
                                     <div>
@@ -1008,7 +1012,7 @@ return (
                                             <option value="">Select Job Title</option>
                                             {jobTitles.map(title => (
                                                 <option key={title.id} value={title.id}>
-                                                    {title.name} {title.creates_manager_account && '(Manager)'}
+                                                    {title.name}
                                                 </option>
                                             ))}
                                         </select>
@@ -1024,12 +1028,12 @@ return (
                                             onChange={(e) => setStaffFormData({ ...staffFormData, commission_percentage: e.target.value })}
                                             step="0.01"
                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            placeholder="20"
+                                            placeholder="e.g., 10%"
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Base Salary (BDT) *
+                                            Base Salary (₹) *
                                         </label>
                                         <input
                                             type="number"
@@ -1039,7 +1043,7 @@ return (
                                             required
                                             step="0.01"
                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            placeholder="15000"
+                                            placeholder="Enter monthly salary"
                                         />
                                     </div>
                                     <div>
@@ -1061,7 +1065,7 @@ return (
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Address
+                                            Complete Address
                                         </label>
                                         <textarea
                                             name="address"
@@ -1069,7 +1073,7 @@ return (
                                             onChange={(e) => setStaffFormData({ ...staffFormData, address: e.target.value })}
                                             rows="2"
                                             className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            placeholder="Dhaka"
+                                            placeholder="Enter complete address with city, state, pincode"
                                         />
                                     </div>
                                 </div>
@@ -1208,13 +1212,13 @@ return (
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                                        Email
+                                        Email Address
                                     </label>
                                     <p className="text-sm text-gray-900">{selectedStaff.email || 'N/A'}</p>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                                        Address
+                                        Complete Address
                                     </label>
                                     <p className="text-sm text-gray-900">{selectedStaff.address || 'N/A'}</p>
                                 </div>

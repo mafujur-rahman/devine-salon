@@ -24,6 +24,7 @@ import {
     MdShoppingBag,
 } from "react-icons/md";
 import LogoutButton from "./logout/Logout";
+import Profile from "./profile/Profile";
 
 // Role-based menu configuration
 const roleMenus = {
@@ -51,15 +52,14 @@ const roleMenus = {
     customer: [
         { name: "Dashboard", icon: MdOutlineGridView, path: "/dashboard/user", hasSub: false },
         { name: "Appointments", icon: MdCalendarToday, path: "/dashboard/user/appointments", hasSub: false },
-        // { name: "Available Staff", icon: MdPeopleOutline, path: "/dashboard/user/staff", hasSub: false },
-        // { name: "Booking History", icon: MdHistory, path: "/dashboard/user/history", hasSub: false },
-        // { name: "Payments", icon: MdPayment, path: "/dashboard/user/payments", hasSub: false },
     ]
 };
 
 export default function Sidebar({ sidebarCollapsed = false, userRole = "manager" }) {
     const pathname = usePathname();
     const [expandedItems, setExpandedItems] = useState({});
+    const [showProfileModal, setShowProfileModal] = useState(false);
+    const [userData, setUserData] = useState(null);
 
     const currentMenu = roleMenus[userRole] || roleMenus.manager;
 
@@ -70,11 +70,16 @@ export default function Sidebar({ sidebarCollapsed = false, userRole = "manager"
         }));
     };
 
+    const handleSettingsClick = (e) => {
+        e.preventDefault();
+        setShowProfileModal(true);
+    };
+
     return (
         <div className={`${sidebarCollapsed ? 'w-20' : 'w-72'} h-screen bg-black text-white flex flex-col transition-all duration-300 fixed left-0 top-0 z-50`}>
             {/* Logo Section */}
             <div className={`px-6 pt-8 pb-6 border-b border-[#dba627]/20 ${sidebarCollapsed ? 'px-2' : ''}`}>
-                <Link href="/dashboard" className={`flex items-center gap-3 group ${sidebarCollapsed ? 'justify-center' : ''}`}>
+                <div  className={`flex items-center gap-3 group ${sidebarCollapsed ? 'justify-center' : ''}`}>
                     <div className="relative">
                         <div className="absolute inset-0 bg-[#dba627] rounded-xl blur-lg opacity-30 group-hover:opacity-50 transition-opacity"></div>
                         <div className="relative w-12 h-12 rounded-xl overflow-hidden shadow-lg bg-white">
@@ -93,7 +98,7 @@ export default function Sidebar({ sidebarCollapsed = false, userRole = "manager"
                             <p className="text-xs text-[#dba627] font-medium mt-0.5">Salon Management</p>
                         </div>
                     )}
-                </Link>
+                </div>
             </div>
 
             {/* User Role Badge */}
@@ -174,17 +179,24 @@ export default function Sidebar({ sidebarCollapsed = false, userRole = "manager"
             {/* Bottom Actions */}
             <div className="px-4 py-6 border-t border-[#dba627]/20 space-y-1.5">
                 {userRole !== "customer" && !sidebarCollapsed && (
-                    <Link
-                        href="/settings"
-                        className="flex items-center gap-3 px-4 py-2.5 text-offwhite/70 hover:text-white hover:bg-white/5 rounded-xl transition-all duration-300 group"
+                    <button
+                        onClick={handleSettingsClick}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-offwhite/70 hover:text-white hover:bg-white/5 rounded-xl transition-all duration-300 group"
                     >
                         <MdSettings size={20} className="text-offwhite/50 group-hover:text-[#dba627] transition-colors" />
                         <span className="text-[14px] font-medium">Settings</span>
-                    </Link>
+                    </button>
                 )}
 
                 <LogoutButton collapsed={sidebarCollapsed} />
             </div>
+
+            {/* Profile Modal */}
+            <Profile 
+                isOpen={showProfileModal}
+                onClose={() => setShowProfileModal(false)}
+                onUserDataUpdate={setUserData}
+            />
 
             <style jsx global>{`
                 @keyframes slideDown {

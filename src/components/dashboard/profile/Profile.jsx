@@ -197,13 +197,13 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
   const userRole = localStorage.getItem("role") || "customer";
 
   return (
-    <div className="fixed inset-0 bg-black/70 text-white backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-40 p-4">
       <div 
         ref={modalRef}
-        className="bg-gradient-to-br from-gray-900 to-black rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-[#dba627]/30 shadow-2xl"
+        className="bg-gradient-to-br from-gray-900 to-black rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-[#dba627]/30 shadow-2xl relative z-10"
       >
         {/* Modal Header */}
-        <div className="sticky top-0 bg-black/95 backdrop-blur-sm border-b border-[#dba627]/20 p-6 flex justify-between items-center">
+        <div className="sticky top-0 bg-black/95 backdrop-blur-sm border-b border-[#dba627]/20 p-6 flex justify-between items-center z-20">
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
             <MdPerson className="text-[#dba627]" />
             My Profile
@@ -238,9 +238,9 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
             </div>
           ) : (
             <>
-              {/* Profile Header */}
+              {/* Profile Header - Removed ID display */}
               <div className="flex items-center gap-4 mb-6 pb-6 border-b border-[#dba627]/20">
-                <div className="relative">
+                <div className="relative z-0">
                   <img
                     src={userData?.avatar || `https://ui-avatars.com/api/?name=${userData?.first_name || 'User'}+${userData?.last_name || ''}&background=dba627&color=fff&bold=true`}
                     alt="Profile"
@@ -252,7 +252,6 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                     {userData?.first_name} {userData?.last_name}
                   </h3>
                   <p className="text-[#dba627] text-sm capitalize">{userRole}</p>
-                  <p className="text-xs text-offwhite/40">ID: {userData?.id}</p>
                 </div>
               </div>
 
@@ -441,18 +440,18 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                   
                   <div className="flex gap-3 pt-4">
                     <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex-1 px-4 py-2 bg-[#dba627] text-black font-medium rounded-lg hover:bg-[#dba627]/90 transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {loading ? "Saving..." : "Save Changes"}
-                    </button>
-                    <button
                       type="button"
                       onClick={() => setIsEditing(false)}
                       className="flex-1 px-4 py-2 bg-white/10 text-white font-medium rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
                     >
                       Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 px-4 py-2 bg-[#dba627] text-black font-medium rounded-lg hover:bg-[#dba627]/90 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {loading ? "Saving..." : "Save Changes"}
                     </button>
                   </div>
                 </form>
@@ -509,13 +508,6 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                   
                   <div className="flex gap-3 pt-4">
                     <button
-                      type="submit"
-                      disabled={loading}
-                      className="flex-1 px-4 py-2 bg-[#dba627] text-black font-medium rounded-lg hover:bg-[#dba627]/90 transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {loading ? "Changing..." : "Change Password"}
-                    </button>
-                    <button
                       type="button"
                       onClick={() => {
                         setShowChangePassword(false);
@@ -524,6 +516,13 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
                       className="flex-1 px-4 py-2 bg-white/10 text-white font-medium rounded-lg hover:bg-white/20 transition-colors cursor-pointer"
                     >
                       Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 px-4 py-2 bg-[#dba627] text-black font-medium rounded-lg hover:bg-[#dba627]/90 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {loading ? "Changing..." : "Change Password"}
                     </button>
                   </div>
                 </form>

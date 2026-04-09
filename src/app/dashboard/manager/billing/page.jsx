@@ -77,6 +77,15 @@ export default function Billing() {
         fetchCustomers();
     }, []);
 
+    // Reset currentItem type when billingType changes
+    useEffect(() => {
+        if (billingType === 'appointment') {
+            setCurrentItem(prev => ({ ...prev, type: 'product', id: '' }));
+        } else {
+            setCurrentItem(prev => ({ ...prev, type: 'service', id: '' }));
+        }
+    }, [billingType]);
+
     const checkAuth = () => {
         const token = localStorage.getItem("token");
         const role = localStorage.getItem("role");
@@ -265,6 +274,17 @@ export default function Billing() {
             return;
         }
 
+        // Prevent adding services for appointment billing
+        if (billingType === 'appointment' && currentItem.type === 'service') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Warning',
+                text: 'Only products can be added for appointment billing!',
+                confirmButtonColor: '#dba627'
+            });
+            return;
+        }
+
         let itemDetails;
         if (currentItem.type === 'service') {
             itemDetails = services.find(s => s.id === parseInt(currentItem.id));
@@ -314,7 +334,11 @@ export default function Billing() {
             }
         }
 
-        setCurrentItem({ type: 'service', id: '', quantity: 1 });
+        setCurrentItem({ 
+            type: billingType === 'appointment' ? 'product' : 'service', 
+            id: '', 
+            quantity: 1 
+        });
     };
 
     const removeItemFromCart = (index) => {
@@ -359,6 +383,11 @@ export default function Billing() {
         });
         setCartItems([]);
         setBillingType('direct');
+        setCurrentItem({ 
+            type: 'service', 
+            id: '', 
+            quantity: 1 
+        });
     };
 
     const handleInputChange = (e) => {
@@ -375,6 +404,8 @@ export default function Billing() {
     const getPaymentMethodBadge = (method) => {
         const colors = {
             'cash': 'bg-green-100 text-green-800',
+            'online': 'bg-blue-100 text-blue-800',
+            'card': 'bg-purple-100 text-purple-800',
         };
         return colors[method] || 'bg-gray-100 text-gray-800';
     };
@@ -659,7 +690,9 @@ export default function Billing() {
                                                         required
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                     >
-                                                        <option value="cash">Cash Only</option>
+                                                        <option value="cash">Cash</option>
+                                                        <option value="online">Online</option>
+                                                        <option value="card">Card</option>
                                                     </select>
                                                 </div>
                                                 <div>
@@ -700,19 +733,35 @@ export default function Billing() {
                                             {/* Add Item */}
                                             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    <div>
-                                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                            Item Type
-                                                        </label>
-                                                        <select
-                                                            value={currentItem.type}
-                                                            onChange={(e) => setCurrentItem({ ...currentItem, type: e.target.value, id: '' })}
-                                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        >
-                                                            <option value="service">Service</option>
-                                                            <option value="product">Product</option>
-                                                        </select>
-                                                    </div>
+                                                    {/* Only show Item Type selector for non-appointment billing */}
+                                                    {billingType !== 'appointment' && (
+                                                        <div>
+                                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                                Item Type
+                                                            </label>
+                                                            <select
+                                                                value={currentItem.type}
+                                                                onChange={(e) => setCurrentItem({ ...currentItem, type: e.target.value, id: '' })}
+                                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                            >
+                                                                <option value="service">Service</option>
+                                                                <option value="product">Product</option>
+                                                            </select>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* For appointment billing, show product only label */}
+                                                    {billingType === 'appointment' && (
+                                                        <div>
+                                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                                Item Type
+                                                            </label>
+                                                            <div className="w-full h-10 px-3 rounded-lg border border-gray-300 bg-gray-100 text-sm text-gray-600 flex items-center">
+                                                                Product Only
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    
                                                     <div>
                                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                             Quantity
@@ -726,28 +775,38 @@ export default function Billing() {
                                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                         />
                                                     </div>
-                                                    <div className="col-span-2">
+                                                    <div className={billingType === 'appointment' ? "col-span-2" : "col-span-2"}>
                                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                            Select {currentItem.type === 'service' ? 'Service' : 'Product'}
+                                                            Select {billingType === 'appointment' ? 'Product' : (currentItem.type === 'service' ? 'Service' : 'Product')}
                                                         </label>
                                                         <select
                                                             value={currentItem.id}
                                                             onChange={(e) => setCurrentItem({ ...currentItem, id: e.target.value })}
                                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                         >
-                                                            <option value="">Select {currentItem.type === 'service' ? 'Service' : 'Product'}</option>
-                                                            {currentItem.type === 'service'
-                                                                ? services.map(item => (
-                                                                    <option key={item.id} value={item.id}>
-                                                                        {item.name} - ₹{item.price}
-                                                                    </option>
-                                                                ))
-                                                                : products.map(item => (
+                                                            <option value="">
+                                                                Select {billingType === 'appointment' ? 'Product' : (currentItem.type === 'service' ? 'Service' : 'Product')}
+                                                            </option>
+                                                            {/* For appointment billing, only show products */}
+                                                            {billingType === 'appointment' ? (
+                                                                products.map(item => (
                                                                     <option key={item.id} value={item.id}>
                                                                         {item.name} - ₹{item.selling_price} (Stock: {item.stock_qty})
                                                                     </option>
                                                                 ))
-                                                            }
+                                                            ) : (
+                                                                currentItem.type === 'service'
+                                                                    ? services.map(item => (
+                                                                        <option key={item.id} value={item.id}>
+                                                                            {item.name} - ₹{item.price}
+                                                                        </option>
+                                                                    ))
+                                                                    : products.map(item => (
+                                                                        <option key={item.id} value={item.id}>
+                                                                            {item.name} - ₹{item.selling_price} (Stock: {item.stock_qty})
+                                                                        </option>
+                                                                    ))
+                                                            )}
                                                         </select>
                                                     </div>
                                                 </div>
