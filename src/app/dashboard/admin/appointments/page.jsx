@@ -24,9 +24,19 @@ export default function AdminAppointments() {
     const [statusUpdateData, setStatusUpdateData] = useState({ status: '' });
     const [customerType, setCustomerType] = useState('existing');
     const [services, setServices] = useState([]);
+    const [filteredServices, setFilteredServices] = useState([]);
+    const [packages, setPackages] = useState([]);
+    const [filteredPackages, setFilteredPackages] = useState([]);
     const [staff, setStaff] = useState([]);
+    const [filteredStaff, setFilteredStaff] = useState([]);
     const [branches, setBranches] = useState([]);
     const [customers, setCustomers] = useState([]);
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [filteredCustomers, setFilteredCustomers] = useState([]);
+    
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
     
     // Form state for creating appointment
     const [formData, setFormData] = useState({
@@ -47,7 +57,9 @@ export default function AdminAppointments() {
         items: []
     });
     const [selectedServices, setSelectedServices] = useState([]);
+    const [selectedPackages, setSelectedPackages] = useState([]);
     const [serviceInput, setServiceInput] = useState('');
+    const [packageInput, setPackageInput] = useState('');
     
     // Admin-specific filters
     const [selectedBranchFilter, setSelectedBranchFilter] = useState('');
@@ -67,14 +79,56 @@ export default function AdminAppointments() {
         checkAuth();
         fetchAppointments();
         fetchBranches();
-        fetchServices();
-        fetchStaff();
+        fetchAllServices();
+        fetchAllPackages();
+        fetchAllStaff();
         fetchCustomers();
     }, []);
+
+    // Filter services, packages, and staff when branch changes
+    useEffect(() => {
+        if (formData.branch) {
+            // Filter services by selected branch
+            const branchServices = services.filter(service => service.branch === parseInt(formData.branch));
+            setFilteredServices(branchServices);
+            
+            // Filter packages by selected branch
+            const branchPackages = packages.filter(pkg => pkg.branch === parseInt(formData.branch));
+            setFilteredPackages(branchPackages);
+            
+            // Filter staff by selected branch
+            const branchStaff = staff.filter(staffMember => staffMember.branch === parseInt(formData.branch));
+            setFilteredStaff(branchStaff);
+            
+            // Reset selected items when branch changes
+            setSelectedServices([]);
+            setSelectedPackages([]);
+            setServiceInput('');
+            setPackageInput('');
+            setFormData(prev => ({ ...prev, staff: '' }));
+        } else {
+            setFilteredServices([]);
+            setFilteredPackages([]);
+            setFilteredStaff([]);
+        }
+    }, [formData.branch, services, packages, staff]);
+
+    // Filter customers based on search
+    useEffect(() => {
+        if (customerSearch) {
+            const filtered = customers.filter(customer => 
+                customer.phone && customer.phone.includes(customerSearch)
+            );
+            setFilteredCustomers(filtered);
+        } else {
+            setFilteredCustomers(customers);
+        }
+    }, [customerSearch, customers]);
 
     // Apply filters whenever filter criteria or appointments change
     useEffect(() => {
         applyFilters();
+        setCurrentPage(1);
     }, [selectedBranchFilter, selectedStatusFilter, dateFilter, searchTerm, appointments]);
 
     const checkAuth = () => {
@@ -120,7 +174,20 @@ export default function AdminAppointments() {
         setLoading(true);
         try {
             const response = await axios.get(`${API_BASE}/appointments/get-all-appointments/`);
-            const appointmentsData = response.data.data || response.data.appointments || response.data.results || [];
+            let appointmentsData = response.data.data || response.data.appointments || response.data.results || [];
+            
+            // Parse package_details if stored as string
+            appointmentsData = appointmentsData.map(app => {
+                if (app.package_details && typeof app.package_details === 'string') {
+                    try {
+                        app.package_details = JSON.parse(app.package_details);
+                    } catch(e) {
+                        app.package_details = [];
+                    }
+                }
+                return app;
+            });
+            
             setAppointments(appointmentsData);
             setFilteredAppointments(appointmentsData);
         } catch (error) {
@@ -146,21 +213,28 @@ export default function AdminAppointments() {
         }
     };
 
-    const fetchServices = async () => {
+    const fetchAllServices = async () => {
         try {
             const response = await axios.get(`${API_BASE}/service/services/`);
-            const servicesData = response.data.data || response.data.services || response.data.results || [];
-            setServices(servicesData);
+            setServices(response.data.data || []);
         } catch (error) {
             console.error('Error fetching services:', error);
         }
     };
 
-    const fetchStaff = async () => {
+    const fetchAllPackages = async () => {
         try {
-            const response = await axios.get(`${API_BASE}/users/staff/`);
-            const staffData = response.data.data || response.data.staff || response.data.results || [];
-            setStaff(staffData);
+            const response = await axios.get(`${API_BASE}/service/packages/`);
+            setPackages(response.data.data || []);
+        } catch (error) {
+            console.error('Error fetching packages:', error);
+        }
+    };
+
+    const fetchAllStaff = async () => {
+        try {
+            const response = await axios.get(`${API_BASE}/staff/bookable/`);
+            setStaff(response.data.data || []);
         } catch (error) {
             console.error('Error fetching staff:', error);
         }
@@ -169,8 +243,8 @@ export default function AdminAppointments() {
     const fetchCustomers = async () => {
         try {
             const response = await axios.get(`${API_BASE}/users/customers/`);
-            const customersData = response.data.data || response.data.customers || response.data.results || [];
-            setCustomers(customersData);
+            setCustomers(response.data.data || []);
+            setFilteredCustomers(response.data.data || []);
         } catch (error) {
             console.error('Error fetching customers:', error);
         }
@@ -194,14 +268,13 @@ export default function AdminAppointments() {
         return null;
     };
 
-    // Sequential status update handler (same as manager version)
+    // Sequential status update handler
     const handleSequentialUpdate = async (appointment, targetStatus) => {
         setLoading(true);
         try {
             const response = await axios.put(`${API_BASE}/appointment/${appointment.id}/update-status/`, { status: targetStatus });
             
             if (response.data.success) {
-                // Show success message
                 Swal.fire({
                     icon: 'success',
                     title: 'Status Updated!',
@@ -211,13 +284,11 @@ export default function AdminAppointments() {
                     showConfirmButton: false
                 });
                 
-                // Refresh data
                 await fetchAppointments();
                 if (showDetailsModal && selectedAppointment?.id === appointment.id) {
                     await fetchAppointmentDetails(appointment.id);
                 }
                 
-                // If not completed, ask for next action
                 if (targetStatus !== 'completed' && getNextStatus(targetStatus)) {
                     const nextStatus = getNextStatus(targetStatus);
                     const result = await Swal.fire({
@@ -311,7 +382,6 @@ export default function AdminAppointments() {
                 confirmButtonColor: '#dba627'
             });
         } else {
-            // If no next status defined, show full status menu
             openUpdateStatusModal(appointment);
         }
     };
@@ -319,11 +389,12 @@ export default function AdminAppointments() {
     const handleCreateAppointment = async (e) => {
         e.preventDefault();
         
-        if (selectedServices.length === 0) {
+        // Check if at least one service OR package is selected
+        if (selectedServices.length === 0 && selectedPackages.length === 0) {
             Swal.fire({
                 icon: 'error',
                 title: 'Validation Error',
-                text: 'Please add at least one service to the appointment',
+                text: 'Please add at least one service or package to the appointment',
                 confirmButtonColor: '#dba627'
             });
             return;
@@ -342,7 +413,31 @@ export default function AdminAppointments() {
         setLoading(true);
 
         let payload;
+        
+        // Calculate total amount
+        let servicesTotal = 0;
+        for (const service of selectedServices) {
+            servicesTotal += service.price || 0;
+        }
+        
+        let packagesTotal = 0;
+        for (const pkg of selectedPackages) {
+            packagesTotal += pkg.package_price || 0;
+        }
+        
+        const totalAmount = servicesTotal + packagesTotal;
+        
+        // Prepare package details
+        const packageDetailsArray = selectedPackages.map(pkg => ({
+            package_id: pkg.packageId,
+            package_name: pkg.package_name,
+            package_price: pkg.package_price,
+            validity_days: pkg.validity_days,
+            services_count: pkg.services?.length || 0
+        }));
+        
         if (customerType === 'existing') {
+            // Start with base payload
             payload = {
                 branch: parseInt(formData.branch),
                 customer: parseInt(formData.customer),
@@ -351,9 +446,27 @@ export default function AdminAppointments() {
                 time: formData.time,
                 appointment_type: formData.appointment_type,
                 notes: formData.notes,
-                items: selectedServices.map(item => ({ service: parseInt(item.service) }))
+                total_amount: totalAmount
             };
+            
+            // Add package_details if there are packages
+            if (selectedPackages.length > 0) {
+                payload.package_details = JSON.stringify(packageDetailsArray);
+                
+                // If there's exactly ONE package, also send as "package" field
+                if (selectedPackages.length === 1) {
+                    payload.package = selectedPackages[0].packageId;
+                }
+            }
+            
+            // Add items if there are selected services
+            if (selectedServices.length > 0) {
+                payload.items = selectedServices.map(item => ({ 
+                    service: parseInt(item.service)
+                }));
+            }
         } else {
+            // Start with base payload for new customer
             payload = {
                 branch: parseInt(formData.branch),
                 staff: parseInt(formData.staff),
@@ -368,9 +481,28 @@ export default function AdminAppointments() {
                 whatsapp: formData.whatsapp,
                 address: formData.address,
                 gender: formData.gender,
-                items: selectedServices.map(item => ({ service: parseInt(item.service) }))
+                total_amount: totalAmount
             };
+            
+            // Add package_details if there are packages
+            if (selectedPackages.length > 0) {
+                payload.package_details = JSON.stringify(packageDetailsArray);
+                
+                // If there's exactly ONE package, also send as "package" field
+                if (selectedPackages.length === 1) {
+                    payload.package = selectedPackages[0].packageId;
+                }
+            }
+            
+            // Add items if there are selected services
+            if (selectedServices.length > 0) {
+                payload.items = selectedServices.map(item => ({ 
+                    service: parseInt(item.service)
+                }));
+            }
         }
+
+        console.log("Sending payload:", payload);
 
         try {
             const response = await axios.post(`${API_BASE}/appointment/create-appointment/`, payload);
@@ -480,7 +612,18 @@ export default function AdminAppointments() {
         setLoading(true);
         try {
             const response = await axios.get(`${API_BASE}/appointment/${appointmentId}/`);
-            setSelectedAppointment(response.data.data);
+            let appointmentData = response.data.data;
+            
+            // Parse package_details if stored as string
+            if (appointmentData.package_details && typeof appointmentData.package_details === 'string') {
+                try {
+                    appointmentData.package_details = JSON.parse(appointmentData.package_details);
+                } catch(e) {
+                    appointmentData.package_details = [];
+                }
+            }
+            
+            setSelectedAppointment(appointmentData);
             setShowDetailsModal(true);
         } catch (error) {
             console.error('Error fetching appointment details:', error);
@@ -497,9 +640,8 @@ export default function AdminAppointments() {
 
     const addService = () => {
         if (serviceInput) {
-            const service = services.find(s => s.id === parseInt(serviceInput));
+            const service = filteredServices.find(s => s.id === parseInt(serviceInput));
             if (service) {
-                // Check if service already added
                 if (selectedServices.some(s => s.service === service.id)) {
                     Swal.fire({
                         icon: 'warning',
@@ -530,8 +672,47 @@ export default function AdminAppointments() {
         }
     };
 
+    const addPackage = () => {
+        if (packageInput) {
+            const pkg = filteredPackages.find(p => p.id === parseInt(packageInput));
+            if (pkg) {
+                if (selectedPackages.some(p => p.packageId === pkg.id)) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Duplicate Package',
+                        text: 'This package has already been added',
+                        confirmButtonColor: '#dba627'
+                    });
+                    return;
+                }
+                
+                const newPackage = {
+                    packageId: pkg.id,
+                    package_name: pkg.name,
+                    package_price: pkg.package_price,
+                    validity_days: pkg.validity_days,
+                    services: pkg.services
+                };
+                
+                setSelectedPackages([...selectedPackages, newPackage]);
+                setPackageInput('');
+            }
+        } else {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No Package Selected',
+                text: 'Please select a package from the dropdown',
+                confirmButtonColor: '#dba627'
+            });
+        }
+    };
+
     const removeService = (indexToRemove) => {
         setSelectedServices(selectedServices.filter((_, index) => index !== indexToRemove));
+    };
+
+    const removePackage = (indexToRemove) => {
+        setSelectedPackages(selectedPackages.filter((_, index) => index !== indexToRemove));
     };
 
     const resetForm = () => {
@@ -553,8 +734,14 @@ export default function AdminAppointments() {
             items: []
         });
         setSelectedServices([]);
+        setSelectedPackages([]);
         setCustomerType('existing');
         setServiceInput('');
+        setPackageInput('');
+        setCustomerSearch('');
+        setFilteredServices([]);
+        setFilteredPackages([]);
+        setFilteredStaff([]);
     };
 
     const handleInputChange = (e) => {
@@ -629,13 +816,23 @@ export default function AdminAppointments() {
         return 0;
     };
 
+    // Calculate total amount for display in form
+    const calculateTotalAmount = () => {
+        let total = 0;
+        total += selectedServices.reduce((sum, service) => sum + (service.price || 0), 0);
+        total += selectedPackages.reduce((sum, pkg) => sum + (pkg.package_price || 0), 0);
+        return total;
+    };
+
     // Check if form is valid for submission
     const isFormValid = () => {
         if (!formData.branch) return false;
+        const hasServiceOrPackage = selectedServices.length > 0 || selectedPackages.length > 0;
+        
         if (customerType === 'existing') {
-            return formData.customer && formData.staff && formData.date && formData.time && selectedServices.length > 0;
+            return formData.customer && formData.staff && formData.date && formData.time && hasServiceOrPackage;
         } else {
-            return formData.phone && formData.first_name && formData.staff && formData.date && formData.time && selectedServices.length > 0;
+            return formData.phone && formData.first_name && formData.staff && formData.date && formData.time && hasServiceOrPackage;
         }
     };
 
@@ -652,6 +849,14 @@ export default function AdminAppointments() {
         setDateFilter('');
         setSearchTerm('');
     };
+
+    // Pagination logic
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentAppointments = filteredAppointments.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
+
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
     return (
         <DashboardLayout>
@@ -726,6 +931,9 @@ export default function AdminAppointments() {
                                                     </option>
                                                 ))}
                                             </select>
+                                            {!formData.branch && (
+                                                <p className="text-xs text-amber-600 mt-1">Please select a branch first to load staff, services, and packages</p>
+                                            )}
                                         </div>
 
                                         {/* Customer Type Selection */}
@@ -761,8 +969,15 @@ export default function AdminAppointments() {
                                         {customerType === 'existing' ? (
                                             <div className="md:col-span-2">
                                                 <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                    Select Customer *
+                                                    Search Customer by Mobile Number *
                                                 </label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search by mobile number..."
+                                                    value={customerSearch}
+                                                    onChange={(e) => setCustomerSearch(e.target.value)}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] mb-2"
+                                                />
                                                 <select
                                                     name="customer"
                                                     value={formData.customer}
@@ -771,7 +986,7 @@ export default function AdminAppointments() {
                                                     className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                 >
                                                     <option value="">Select Customer</option>
-                                                    {customers && customers.map(customer => (
+                                                    {filteredCustomers && filteredCustomers.map(customer => (
                                                         <option key={customer.id} value={customer.id}>
                                                             {customer.first_name} {customer.last_name} - {customer.phone}
                                                         </option>
@@ -878,138 +1093,238 @@ export default function AdminAppointments() {
                                             </>
                                         )}
 
-                                        {/* Appointment Details */}
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Staff Member *
-                                            </label>
-                                            <select
-                                                name="staff"
-                                                value={formData.staff}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="">Select Staff</option>
-                                                {staff && staff.map(staffMember => (
-                                                    <option key={staffMember.id} value={staffMember.id}>
-                                                        {staffMember.name || `${staffMember.first_name} ${staffMember.last_name}`}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Appointment Date *
-                                            </label>
-                                            <input
-                                                type="date"
-                                                name="date"
-                                                value={formData.date}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Appointment Time *
-                                            </label>
-                                            <input
-                                                type="time"
-                                                name="time"
-                                                value={formData.time}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Appointment Type *
-                                            </label>
-                                            <select
-                                                name="appointment_type"
-                                                value={formData.appointment_type}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="walkin">Walk-in</option>
-                                                <option value="appointment">Appointment</option>
-                                            </select>
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Additional Notes
-                                            </label>
-                                            <textarea
-                                                name="notes"
-                                                value={formData.notes}
-                                                onChange={handleInputChange}
-                                                rows="2"
-                                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Any special requests or notes..."
-                                            />
-                                        </div>
+                                        {/* Appointment Details - Only show if branch is selected */}
+                                        {formData.branch && (
+                                            <>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                        Staff Member *
+                                                    </label>
+                                                    <select
+                                                        name="staff"
+                                                        value={formData.staff}
+                                                        onChange={handleInputChange}
+                                                        required
+                                                        className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    >
+                                                        <option value="">Select Staff</option>
+                                                        {filteredStaff && filteredStaff.map(staffMember => (
+                                                            <option key={staffMember.id} value={staffMember.id}>
+                                                                {staffMember.name || `${staffMember.first_name} ${staffMember.last_name}`}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {filteredStaff.length === 0 && (
+                                                        <p className="text-xs text-amber-600 mt-1">No staff available for this branch</p>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                        Appointment Date *
+                                                    </label>
+                                                    <input
+                                                        type="date"
+                                                        name="date"
+                                                        value={formData.date}
+                                                        onChange={handleInputChange}
+                                                        required
+                                                        className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                        Appointment Time *
+                                                    </label>
+                                                    <input
+                                                        type="time"
+                                                        name="time"
+                                                        value={formData.time}
+                                                        onChange={handleInputChange}
+                                                        required
+                                                        className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                        Appointment Type *
+                                                    </label>
+                                                    <select
+                                                        name="appointment_type"
+                                                        value={formData.appointment_type}
+                                                        onChange={handleInputChange}
+                                                        required
+                                                        className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    >
+                                                        <option value="walkin">Walk-in</option>
+                                                        <option value="appointment">Appointment</option>
+                                                    </select>
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                        Additional Notes
+                                                    </label>
+                                                    <textarea
+                                                        name="notes"
+                                                        value={formData.notes}
+                                                        onChange={handleInputChange}
+                                                        rows="2"
+                                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                        placeholder="Any special requests or notes..."
+                                                    />
+                                                </div>
 
-                                        {/* Services Selection - REQUIRED */}
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Services *
-                                            </label>
-                                            <div className="flex gap-2 mb-3">
-                                                <select
-                                                    value={serviceInput}
-                                                    onChange={(e) => setServiceInput(e.target.value)}
-                                                    className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                >
-                                                    <option value="">Select Service</option>
-                                                    {services && services.map(service => (
-                                                        <option key={service.id} value={service.id}>
-                                                            {service.name} - ₹{service.price} ({getDurationMinutes(service.duration)} min)
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                <button
-                                                    type="button"
-                                                    onClick={addService}
-                                                    className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
-                                                >
-                                                    Add
-                                                </button>
-                                            </div>
-                                            
-                                            {selectedServices.length > 0 && (
-                                                <>
-                                                    <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3">
-                                                        <p className="text-xs text-green-700 flex items-center gap-1">
-                                                            <span className="text-sm">✓</span> 
-                                                            {selectedServices.length} service(s) added
+                                                {/* Services Selection - Optional */}
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                        Services (Optional)
+                                                    </label>
+                                                    <div className="flex gap-2 mb-3">
+                                                        <select
+                                                            value={serviceInput}
+                                                            onChange={(e) => setServiceInput(e.target.value)}
+                                                            className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                        >
+                                                            <option value="">Select Service</option>
+                                                            {filteredServices && filteredServices.map(service => (
+                                                                <option key={service.id} value={service.id}>
+                                                                    {service.name} - ₹{service.price} ({getDurationMinutes(service.duration)} min)
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        <button
+                                                            type="button"
+                                                            onClick={addService}
+                                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+                                                        >
+                                                            Add
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    {selectedServices.length > 0 && (
+                                                        <>
+                                                            <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3">
+                                                                <p className="text-xs text-green-700 flex items-center gap-1">
+                                                                    <span className="text-sm">✓</span> 
+                                                                    {selectedServices.length} service(s) added
+                                                                </p>
+                                                            </div>
+                                                            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 mb-4">
+                                                                {selectedServices.map((service, index) => (
+                                                                    <div key={index} className="p-3 flex justify-between items-center">
+                                                                        <div>
+                                                                            <span className="text-sm font-medium text-gray-900">{service.service_name}</span>
+                                                                            <span className="text-xs text-gray-500 ml-2">
+                                                                                ₹{service.price} - {service.duration} min
+                                                                            </span>
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removeService(index)}
+                                                                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                                                        >
+                                                                            Remove
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                {/* Packages Selection - Optional */}
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                        Packages (Optional)
+                                                    </label>
+                                                    <div className="flex gap-2 mb-3">
+                                                        <select
+                                                            value={packageInput}
+                                                            onChange={(e) => setPackageInput(e.target.value)}
+                                                            className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                        >
+                                                            <option value="">Select Package</option>
+                                                            {filteredPackages && filteredPackages.map(pkg => (
+                                                                <option key={pkg.id} value={pkg.id}>
+                                                                    {pkg.name} - ₹{pkg.package_price} ({pkg.validity_days} days valid)
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        <button
+                                                            type="button"
+                                                            onClick={addPackage}
+                                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+                                                        >
+                                                            Add
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    {selectedPackages.length > 0 && (
+                                                        <>
+                                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 mb-3">
+                                                                <p className="text-xs text-blue-700 flex items-center gap-1">
+                                                                    <span className="text-sm">✓</span> 
+                                                                    {selectedPackages.length} package(s) added
+                                                                </p>
+                                                            </div>
+                                                            <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                                                                {selectedPackages.map((pkg, index) => (
+                                                                    <div key={index} className="p-3 flex justify-between items-center">
+                                                                        <div>
+                                                                            <span className="text-sm font-medium text-gray-900">{pkg.package_name}</span>
+                                                                            <span className="text-xs text-gray-500 ml-2">
+                                                                                Package Price: ₹{pkg.package_price}
+                                                                            </span>
+                                                                            {pkg.validity_days && (
+                                                                                <span className="text-xs text-gray-400 ml-2">
+                                                                                    ({pkg.validity_days} days valid)
+                                                                                </span>
+                                                                            )}
+                                                                            <div className="text-xs text-gray-500 mt-1">
+                                                                                Includes: {pkg.services?.length || 0} service(s)
+                                                                            </div>
+                                                                        </div>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removePackage(index)}
+                                                                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                                                        >
+                                                                            Remove
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                    
+                                                    {/* Show warning if no service or package selected */}
+                                                    {selectedServices.length === 0 && selectedPackages.length === 0 && (
+                                                        <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-2">
+                                                            <p className="text-xs text-yellow-700 flex items-center gap-1">
+                                                                <span className="text-sm">⚠️</span> 
+                                                                Please add at least one service OR package to create the appointment
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Total Amount Summary */}
+                                                {(selectedServices.length > 0 || selectedPackages.length > 0) && (
+                                                    <div className="md:col-span-2 mt-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-sm font-semibold text-gray-700">Total Amount:</span>
+                                                            <span className="text-2xl font-bold text-[#dba627]">
+                                                                ₹{calculateTotalAmount()}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 mt-2 text-right">
+                                                            {selectedPackages.length > 0 && "✓ Package prices are fixed and include all services"}
+                                                            {selectedServices.length > 0 && selectedPackages.length > 0 && " • "}
+                                                            {selectedServices.length > 0 && "✓ Individual services priced separately"}
                                                         </p>
                                                     </div>
-                                                    <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
-                                                        {selectedServices.map((service, index) => (
-                                                            <div key={index} className="p-3 flex justify-between items-center">
-                                                                <div>
-                                                                    <span className="text-sm font-medium text-gray-900">{service.service_name}</span>
-                                                                    <span className="text-xs text-gray-500 ml-2">
-                                                                        ₹{service.price} - {service.duration} min
-                                                                    </span>
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => removeService(index)}
-                                                                    className="text-red-600 hover:text-red-800 text-sm font-medium"
-                                                                >
-                                                                    Remove
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
+                                                )}
+                                            </>
+                                        )}
                                     </div>
 
                                     {/* FOOTER */}
@@ -1235,19 +1550,49 @@ export default function AdminAppointments() {
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
-                                            Services
+                                            Packages
                                         </label>
                                         <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
-                                            {selectedAppointment.items?.map((item, index) => (
-                                                <div key={index} className="p-3 flex justify-between items-center">
-                                                    <div>
-                                                        <p className="text-sm font-semibold text-gray-900">{item.service_name}</p>
-                                                        <p className="text-xs text-gray-500">Duration: {item.duration} min</p>
+                                            {selectedAppointment.package_details && selectedAppointment.package_details.length > 0 ? (
+                                                selectedAppointment.package_details.map((pkg, index) => (
+                                                    <div key={index} className="p-4 bg-blue-50">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <p className="text-sm font-semibold text-blue-900">{pkg.package_name}</p>
+                                                                <p className="text-xs text-blue-700 mt-1">
+                                                                    Includes {pkg.services_count} services • Valid for {pkg.validity_days} days
+                                                                </p>
+                                                            </div>
+                                                            <p className="text-lg font-bold text-[#dba627]">₹{pkg.package_price}</p>
+                                                        </div>
                                                     </div>
-                                                    <p className="text-sm font-bold text-[#dba627]">₹{item.price}</p>
+                                                ))
+                                            ) : (
+                                                <div className="p-3 text-center text-gray-500">
+                                                    No packages added
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
+                                        
+                                        {selectedAppointment.items && selectedAppointment.items.length > 0 && (
+                                            <>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-2 mt-4 uppercase tracking-wide">
+                                                    Individual Services
+                                                </label>
+                                                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                                                    {selectedAppointment.items.map((item, index) => (
+                                                        <div key={index} className="p-3 flex justify-between items-center">
+                                                            <div>
+                                                                <p className="text-sm font-semibold text-gray-900">{item.service_name}</p>
+                                                                <p className="text-xs text-gray-500">Duration: {item.duration} min</p>
+                                                            </div>
+                                                            <p className="text-sm font-bold text-[#dba627]">₹{item.price}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+                                        
                                         <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between">
                                             <span className="text-sm font-semibold text-gray-900">Total</span>
                                             <span className="text-lg font-bold text-[#dba627]">₹{selectedAppointment.total_amount}</span>
@@ -1340,129 +1685,220 @@ export default function AdminAppointments() {
                         <p className="text-gray-500">No appointments found.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200">
-                        <table className="w-full">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Services</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {filteredAppointments.map((appointment, index) => {
-                                    const branch = branches.find(b => b.id === appointment.branch);
-                                    const nextStatus = getNextStatus(appointment.status);
-                                    const canCancel = CANCELLABLE_STATUSES.includes(appointment.status);
+                    <>
+                        <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date & Time</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Packages</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Services</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                        <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {currentAppointments.map((appointment, index) => {
+                                        const branch = branches.find(b => b.id === appointment.branch);
+                                        const nextStatus = getNextStatus(appointment.status);
+                                        const canCancel = CANCELLABLE_STATUSES.includes(appointment.status);
+                                        const serialNumber = indexOfFirstItem + index + 1;
+                                        
+                                        // Handle packages - check both package_details and package field
+                                        let packagesList = [];
+                                        
+                                        // Check if there's a package from the 'package' field (single package)
+                                        if (appointment.package && appointment.package !== null && appointment.package_name) {
+                                            packagesList.push(appointment.package_name);
+                                        }
+                                        
+                                        // Check if there are package_details (multiple packages)
+                                        if (appointment.package_details) {
+                                            if (typeof appointment.package_details === 'string') {
+                                                try {
+                                                    const parsed = JSON.parse(appointment.package_details);
+                                                    if (Array.isArray(parsed) && parsed.length > 0) {
+                                                        packagesList = [...packagesList, ...parsed.map(pkg => pkg.package_name)];
+                                                    }
+                                                } catch(e) {
+                                                    console.error('Error parsing package_details:', e);
+                                                }
+                                            } else if (Array.isArray(appointment.package_details) && appointment.package_details.length > 0) {
+                                                packagesList = [...packagesList, ...appointment.package_details.map(pkg => pkg.package_name)];
+                                            }
+                                        }
 
-                                    return (
-                                        <tr key={appointment.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-4 text-sm text-gray-500 font-medium">{index + 1}</td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm font-semibold text-gray-900">#{appointment.id}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm text-gray-700">{appointment.customer_name || `ID: ${appointment.customer}`}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm text-gray-500">{appointment.customer_phone || 'N/A'}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm text-gray-900">{appointment.date}</div>
-                                                <div className="text-xs text-gray-400">{appointment.time}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div>
-                                                    <span className="text-sm text-gray-700">{branch?.name || `ID: ${appointment.branch}`}</span>
-                                                    {branch?.city && (
-                                                        <div className="text-xs text-gray-400">{branch.city}</div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {appointment.items?.slice(0, 2).map((item, idx) => (
-                                                        <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                                                            {item.service_name}
-                                                        </span>
-                                                    ))}
-                                                    {appointment.items?.length > 2 && (
-                                                        <span className="text-xs text-gray-500">
-                                                            +{appointment.items.length - 2}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm font-semibold text-[#dba627]">₹{appointment.total_amount}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(appointment.status)}`}>
-                                                    {appointment.status?.toUpperCase()}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={() => fetchAppointmentDetails(appointment.id)}
-                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                        title="View Details"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                        </svg>
-                                                    </button>
-                                                    {appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
-                                                        <>
-                                                            {nextStatus && (
+                                        // Get services list (only names)
+                                        let servicesList = (appointment.items || []).map(item => item.service_name);
+
+                                        return (
+                                            <tr key={appointment.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4 text-sm text-gray-500 font-medium">{serialNumber}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm font-semibold text-gray-900">#{appointment.id}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm text-gray-700">{appointment.customer_name || `ID: ${appointment.customer}`}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm text-gray-500">{appointment.customer_phone || 'N/A'}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="text-sm text-gray-900">{appointment.date}</div>
+                                                    <div className="text-xs text-gray-400">{appointment.time}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div>
+                                                        <span className="text-sm text-gray-700">{branch?.name || `ID: ${appointment.branch}`}</span>
+                                                        {branch?.city && (
+                                                            <div className="text-xs text-gray-400">{branch.city}</div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {packagesList.length > 0 ? (
+                                                            packagesList.map((pkgName, idx) => (
+                                                                <span key={idx} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                                                                    {pkgName}
+                                                                </span>
+                                                            ))
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">—</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {servicesList.length > 0 ? (
+                                                            servicesList.slice(0, 2).map((serviceName, idx) => (
+                                                                <span key={idx} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                                                                    {serviceName}
+                                                                </span>
+                                                            ))
+                                                        ) : (
+                                                            <span className="text-xs text-gray-400">—</span>
+                                                        )}
+                                                        {servicesList.length > 2 && (
+                                                            <span className="text-xs text-gray-500">
+                                                                +{servicesList.length - 2}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm font-semibold text-[#dba627]">₹{appointment.total_amount}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(appointment.status)}`}>
+                                                        {appointment.status?.toUpperCase()}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={() => fetchAppointmentDetails(appointment.id)}
+                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                            title="View Details"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                        </button>
+                                                        {appointment.status !== 'completed' && appointment.status !== 'cancelled' && (
+                                                            <>
+                                                                {nextStatus && (
+                                                                    <button
+                                                                        onClick={() => handleQuickStatusUpdate(appointment)}
+                                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                                        title={`Move to ${nextStatus.toUpperCase()}`}
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
+                                                                {canCancel && (
+                                                                    <button
+                                                                        onClick={() => handleCancelAppointment(appointment)}
+                                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                        title="Cancel"
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
                                                                 <button
-                                                                    onClick={() => handleQuickStatusUpdate(appointment)}
-                                                                    className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                                    title={`Move to ${nextStatus.toUpperCase()}`}
-                                                                >
-                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                                                    </svg>
-                                                                </button>
-                                                            )}
-                                                            {canCancel && (
-                                                                <button
-                                                                    onClick={() => handleCancelAppointment(appointment)}
+                                                                    onClick={() => handleDeleteAppointment(appointment.id)}
                                                                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                    title="Cancel"
+                                                                    title="Delete"
                                                                 >
                                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                                     </svg>
                                                                 </button>
-                                                            )}
-                                                            <button
-                                                                onClick={() => handleDeleteAppointment(appointment.id)}
-                                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                title="Delete"
-                                                            >
-                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                                </svg>
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-2 mt-6">
+                                <button
+                                    onClick={() => paginate(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                        currentPage === 1
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                    }`}
+                                >
+                                    Previous
+                                </button>
+                                <div className="flex gap-1">
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                                        <button
+                                            key={number}
+                                            onClick={() => paginate(number)}
+                                            className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
+                                                currentPage === number
+                                                    ? 'bg-[#dba627] text-white'
+                                                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                            }`}
+                                        >
+                                            {number}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={() => paginate(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                        currentPage === totalPages
+                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                    }`}
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </DashboardLayout>

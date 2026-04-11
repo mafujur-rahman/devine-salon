@@ -33,6 +33,10 @@ export default function CreateAppointment() {
     const [selectedBranchStatus, setSelectedBranchStatus] = useState(null);
     const [isBranchAvailable, setIsBranchAvailable] = useState(true);
     const [branchUnavailableReason, setBranchUnavailableReason] = useState("");
+    
+    // Available time slots for selected date
+    const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
+    const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
 
     const [formData, setFormData] = useState({
         branch: "",
@@ -68,6 +72,7 @@ export default function CreateAppointment() {
             setServiceInput("");
             setSelectedPackage("");
             setPackageServices([]);
+            setAvailableTimeSlots([]);
         } else {
             setStaff([]);
             setServices([]);
@@ -75,8 +80,18 @@ export default function CreateAppointment() {
             setSelectedBranchStatus(null);
             setIsBranchAvailable(true);
             setBranchUnavailableReason("");
+            setAvailableTimeSlots([]);
         }
     }, [formData.branch]);
+
+    // Fetch available time slots when branch, staff, and date change
+    useEffect(() => {
+        if (formData.branch && formData.staff && formData.date && isBranchAvailable) {
+            fetchAvailableTimeSlots();
+        } else {
+            setAvailableTimeSlots([]);
+        }
+    }, [formData.branch, formData.staff, formData.date, isBranchAvailable]);
 
     const checkAuth = () => {
         const token = localStorage.getItem("token");
@@ -145,6 +160,39 @@ export default function CreateAppointment() {
         }
     };
 
+    const fetchAvailableTimeSlots = async () => {
+        setLoadingTimeSlots(true);
+        try {
+            const response = await axios.get(`${API_BASE}/appointments/available-time-slots/`, {
+                params: {
+                    branch_id: formData.branch,
+                    staff_id: formData.staff,
+                    date: formData.date
+                }
+            });
+            const slots = response.data.data || response.data.available_slots || [];
+            setAvailableTimeSlots(slots);
+            
+            // Clear time selection if current time is not in available slots
+            if (formData.time && !slots.includes(formData.time)) {
+                setFormData(prev => ({ ...prev, time: "" }));
+                if (slots.length > 0) {
+                    Swal.fire({
+                        icon: "warning",
+                        title: "Time Unavailable",
+                        text: "The selected time is no longer available. Please select another time.",
+                        confirmButtonColor: "#dba627",
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching available time slots:", error);
+            setAvailableTimeSlots([]);
+        } finally {
+            setLoadingTimeSlots(false);
+        }
+    };
+
     const checkBranchStatus = async (branchId) => {
         try {
             // Fetch branch details to check status
@@ -166,19 +214,6 @@ export default function CreateAppointment() {
             else if (branchData.currently_open === false) {
                 isAvailable = false;
                 reason = "This branch is currently closed. Please visit during business hours.";
-            }
-            // Check business hours if available
-            else if (branchData.opening_time && branchData.closing_time) {
-                // Optional: Check if current time is within business hours
-                const now = new Date();
-                const currentTime = now.getHours() * 60 + now.getMinutes();
-                const openingTime = convertTimeToMinutes(branchData.opening_time);
-                const closingTime = convertTimeToMinutes(branchData.closing_time);
-                
-                if (currentTime < openingTime || currentTime > closingTime) {
-                    isAvailable = false;
-                    reason = `This branch is currently closed. Business hours: ${branchData.opening_time} - ${branchData.closing_time}`;
-                }
             }
             
             setIsBranchAvailable(isAvailable);
@@ -205,10 +240,17 @@ export default function CreateAppointment() {
         }
     };
     
-    const convertTimeToMinutes = (timeString) => {
-        if (!timeString) return 0;
-        const [hours, minutes] = timeString.split(':');
-        return parseInt(hours) * 60 + parseInt(minutes);
+    const isTimeWithinBusinessHours = (time, branch) => {
+        if (!branch || !branch.opening_time || !branch.closing_time) return true;
+        
+        const [hours, minutes] = time.split(':');
+        const timeMinutes = parseInt(hours) * 60 + parseInt(minutes);
+        const [openHours, openMinutes] = branch.opening_time.split(':');
+        const [closeHours, closeMinutes] = branch.closing_time.split(':');
+        const openMinutesTotal = parseInt(openHours) * 60 + parseInt(openMinutes);
+        const closeMinutesTotal = parseInt(closeHours) * 60 + parseInt(closeMinutes);
+        
+        return timeMinutes >= openMinutesTotal && timeMinutes <= closeMinutesTotal;
     };
 
     const handleInputChange = (e) => {
@@ -220,7 +262,7 @@ export default function CreateAppointment() {
 
     const handleBranchChange = async (e) => {
         const branchId = e.target.value;
-        setFormData(prev => ({ ...prev, branch: branchId }));
+        setFormData(prev => ({ ...prev, branch: branchId, time: "" }));
         
         if (branchId) {
             // Check branch status before allowing selection
@@ -229,6 +271,11 @@ export default function CreateAppointment() {
                 setFormData(prev => ({ ...prev, branch: "" }));
             }
         }
+    };
+
+    const handleDateChange = (e) => {
+        const selectedDate = e.target.value;
+        setFormData(prev => ({ ...prev, date: selectedDate, time: "" }));
     };
 
     const handlePackageChange = (e) => {
@@ -328,6 +375,49 @@ export default function CreateAppointment() {
         setSelectedBranchStatus(null);
         setIsBranchAvailable(true);
         setBranchUnavailableReason("");
+        setAvailableTimeSlots([]);
+    };
+
+    const validateDateTime = () => {
+        const selectedDate = new Date(formData.date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Check if date is in the past
+        if (selectedDate < today) {
+            Swal.fire({
+                icon: "error",
+                title: "Invalid Date",
+                text: "Cannot book appointments for past dates. Please select a future date.",
+                confirmButtonColor: "#dba627",
+            });
+            return false;
+        }
+        
+        // Check if selected time is available
+        if (!availableTimeSlots.includes(formData.time)) {
+            Swal.fire({
+                icon: "error",
+                title: "Time Unavailable",
+                text: "The selected time is not available. Please select an available time slot.",
+                confirmButtonColor: "#dba627",
+            });
+            return false;
+        }
+        
+        // Check business hours
+        const branch = branches.find(b => b.id === parseInt(formData.branch));
+        if (branch && !isTimeWithinBusinessHours(formData.time, branch)) {
+            Swal.fire({
+                icon: "error",
+                title: "Outside Business Hours",
+                text: `Please select a time within business hours (${branch.opening_time} - ${branch.closing_time}).`,
+                confirmButtonColor: "#dba627",
+            });
+            return false;
+        }
+        
+        return true;
     };
 
     const handleSubmit = async (e) => {
@@ -366,6 +456,11 @@ export default function CreateAppointment() {
             });
             return;
         }
+        
+        // Validate date and time
+        if (!validateDateTime()) {
+            return;
+        }
 
         setModalLoading(true);
 
@@ -400,13 +495,32 @@ export default function CreateAppointment() {
             console.error("Error creating appointment:", error);
             
             // Check if error is due to branch being closed/inactive
-            if (error.response?.status === 400 && error.response?.data?.message?.includes("branch")) {
-                Swal.fire({
-                    icon: "error",
-                    title: "Branch Unavailable",
-                    text: "This branch is currently not accepting appointments. Please try another branch.",
-                    confirmButtonColor: "#dba627",
-                });
+            if (error.response?.status === 400) {
+                const errorMessage = error.response?.data?.message || "";
+                if (errorMessage.includes("branch") || errorMessage.includes("closed")) {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Branch Unavailable",
+                        text: "This branch is currently not accepting appointments. Please try another branch.",
+                        confirmButtonColor: "#dba627",
+                    });
+                } else if (errorMessage.includes("time") || errorMessage.includes("slot")) {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Time Unavailable",
+                        text: errorMessage || "The selected time slot is no longer available. Please choose another time.",
+                        confirmButtonColor: "#dba627",
+                    });
+                    // Refresh available time slots
+                    fetchAvailableTimeSlots();
+                } else {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Error",
+                        text: errorMessage || "Failed to create appointment",
+                        confirmButtonColor: "#dba627",
+                    });
+                }
             } else {
                 Swal.fire({
                     icon: "error",
@@ -802,7 +916,7 @@ export default function CreateAppointment() {
                                                     type="date"
                                                     name="date"
                                                     value={formData.date}
-                                                    onChange={handleInputChange}
+                                                    onChange={handleDateChange}
                                                     required
                                                     disabled={!isBranchAvailable}
                                                     min={new Date().toISOString().split('T')[0]}
@@ -815,15 +929,39 @@ export default function CreateAppointment() {
                                                 <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                     Appointment Time *
                                                 </label>
-                                                <input
-                                                    type="time"
+                                                <select
                                                     name="time"
                                                     value={formData.time}
                                                     onChange={handleInputChange}
                                                     required
-                                                    disabled={!isBranchAvailable}
+                                                    disabled={!formData.date || !formData.staff || loadingTimeSlots || availableTimeSlots.length === 0}
                                                     className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                                />
+                                                >
+                                                    <option value="">
+                                                        {!formData.date 
+                                                            ? "Please select a date first" 
+                                                            : !formData.staff
+                                                                ? "Please select staff first"
+                                                                : loadingTimeSlots
+                                                                    ? "Loading available times..."
+                                                                    : availableTimeSlots.length === 0
+                                                                        ? "No available time slots"
+                                                                        : "Select Time"}
+                                                    </option>
+                                                    {availableTimeSlots.map(slot => (
+                                                        <option key={slot} value={slot}>
+                                                            {slot}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {formData.date && formData.staff && availableTimeSlots.length === 0 && !loadingTimeSlots && (
+                                                    <p className="text-amber-600 text-xs mt-1 flex items-center gap-1">
+                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                        </svg>
+                                                        No available time slots for this date. Please try another date.
+                                                    </p>
+                                                )}
                                             </div>
 
                                             {/* Appointment Type */}

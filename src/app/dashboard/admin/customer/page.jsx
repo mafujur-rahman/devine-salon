@@ -38,6 +38,11 @@ export default function AdminCustomers() {
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [customerStats, setCustomerStats] = useState(null);
     const [loadingStats, setLoadingStats] = useState(false);
+    
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+    
     const [formData, setFormData] = useState({
         phone: '',
         first_name: '',
@@ -72,6 +77,7 @@ export default function AdminCustomers() {
             const data = await apiFetch('/users/customers/');
             let customersData = data.data || data.customers || data.results || [];
             setCustomers(customersData);
+            setCurrentPage(1); // Reset to first page when data loads
         } catch (error) {
             console.error('Error fetching customers:', error);
             Swal.fire({
@@ -186,6 +192,89 @@ export default function AdminCustomers() {
         return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     };
 
+    // Pagination helper functions
+    const getPaginatedData = () => {
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        return customers.slice(startIndex, endIndex);
+    };
+
+    const getTotalPages = () => {
+        return Math.ceil(customers.length / itemsPerPage);
+    };
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
+    };
+
+    const renderPagination = () => {
+        const totalPages = getTotalPages();
+        if (totalPages <= 1) return null;
+
+        const pageNumbers = [];
+        const maxVisiblePages = 5;
+        
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+        
+        if (endPage - startPage + 1 < maxVisiblePages) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pageNumbers.push(i);
+        }
+
+        return (
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50">
+                <div className="text-sm text-gray-700">
+                    Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+                    <span className="font-medium">{Math.min(currentPage * itemsPerPage, customers.length)}</span> of{' '}
+                    <span className="font-medium">{customers.length}</span> customers
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                            currentPage === 1
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer'
+                        }`}
+                    >
+                        Previous
+                    </button>
+                    {pageNumbers.map(page => (
+                        <button
+                            key={page}
+                            onClick={() => handlePageChange(page)}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                                currentPage === page
+                                    ? 'bg-[#dba627] text-white'
+                                    : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
+                            }`}
+                        >
+                            {page}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                            currentPage === totalPages
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer'
+                        }`}
+                    >
+                        Next
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    const paginatedCustomers = getPaginatedData();
+
     return (
         <DashboardLayout>
             <div>
@@ -229,7 +318,7 @@ export default function AdminCustomers() {
                                 </div>
                                 <button
                                     onClick={() => setShowCreateForm(false)}
-                                    className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
+                                    className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer"
                                 >
                                     ✕
                                 </button>
@@ -379,7 +468,7 @@ export default function AdminCustomers() {
                                         setSelectedCustomer(null);
                                         setCustomerStats(null);
                                     }}
-                                    className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
+                                    className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer"
                                 >
                                     ✕
                                 </button>
@@ -588,120 +677,124 @@ export default function AdminCustomers() {
                         <p className="text-gray-500">No customers found. Click Add Customer to add one.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200">
-                        <table className="w-full">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Appointments</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Spendings</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branches</th>
-                                    <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {customers.map((customer, index) => (
-                                    <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="px-6 py-4 text-sm text-gray-500 font-medium">{index + 1}</td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-[#dba627]/20 flex items-center justify-center text-[#dba627] text-sm font-bold">
-                                                    {getInitials(customer.first_name, customer.last_name)}
+                    <>
+                        <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Appointments</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Spendings</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branches</th>
+                                        <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {paginatedCustomers.map((customer, index) => (
+                                        <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4 text-sm text-gray-500 font-medium">
+                                                {(currentPage - 1) * itemsPerPage + index + 1}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-[#dba627]/20 flex items-center justify-center text-[#dba627] text-sm font-bold">
+                                                        {getInitials(customer.first_name, customer.last_name)}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-gray-900">
+                                                            {customer.first_name} {customer.last_name}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm font-semibold text-gray-900">
-                                                        {customer.first_name} {customer.last_name}
-                                                    </p>
-                                                   
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                                </svg>
-                                                <span className="text-sm text-gray-700">{customer.phone}</span>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {customer.email ? (
+                                            </td>
+                                            <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">
                                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                                     </svg>
-                                                    <span className="text-sm text-gray-600 truncate max-w-[150px]">{customer.email}</span>
+                                                    <span className="text-sm text-gray-700">{customer.phone}</span>
                                                 </div>
-                                            ) : (
-                                                <span className="text-sm text-gray-400">Not provided</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            {customer.address ? (
-                                                <div className="flex items-center gap-2">
-                                                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    </svg>
-                                                    <span className="text-sm text-gray-600 truncate max-w-[150px]">{customer.address}</span>
-                                                </div>
-                                            ) : (
-                                                <span className="text-sm text-gray-400">Not provided</span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                {customer.appointment_count || 0} visits
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="text-sm font-semibold text-[#dba627]">
-                                                ৳{customer.total_spendings || '0.00'}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className="flex flex-wrap gap-1">
-                                                {customer.branch_names && customer.branch_names.length > 0 ? (
-                                                    <>
-                                                        {customer.branch_names.slice(0, 2).map((branch, idx) => (
-                                                            <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                                                                {branch.length > 15 ? branch.substring(0, 12) + '...' : branch}
-                                                            </span>
-                                                        ))}
-                                                        {customer.branch_names.length > 2 && (
-                                                            <span className="text-xs text-gray-500">
-                                                                +{customer.branch_names.length - 2}
-                                                            </span>
-                                                        )}
-                                                    </>
+                                             </td>
+                                            <td className="px-6 py-4">
+                                                {customer.email ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                        </svg>
+                                                        <span className="text-sm text-gray-600 truncate max-w-[150px]">{customer.email}</span>
+                                                    </div>
                                                 ) : (
-                                                    <span className="text-xs text-gray-400">None</span>
+                                                    <span className="text-sm text-gray-400">Not provided</span>
                                                 )}
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => fetchCustomerDetails(customer.id)}
-                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                                                    title="View Details & Stats"
-                                                >
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                             </td>
+                                            <td className="px-6 py-4">
+                                                {customer.address ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        </svg>
+                                                        <span className="text-sm text-gray-600 truncate max-w-[150px]">{customer.address}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400">Not provided</span>
+                                                )}
+                                             </td>
+                                            <td className="px-6 py-4">
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                    {customer.appointment_count || 0} visits
+                                                </span>
+                                             </td>
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm font-semibold text-[#dba627]">
+                                                    ৳{customer.total_spendings || '0.00'}
+                                                </span>
+                                             </td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {customer.branch_names && customer.branch_names.length > 0 ? (
+                                                        <>
+                                                            {customer.branch_names.slice(0, 2).map((branch, idx) => (
+                                                                <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                                                                    {branch.length > 15 ? branch.substring(0, 12) + '...' : branch}
+                                                                </span>
+                                                            ))}
+                                                            {customer.branch_names.length > 2 && (
+                                                                <span className="text-xs text-gray-500">
+                                                                    +{customer.branch_names.length - 2}
+                                                                </span>
+                                                            )}
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-xs text-gray-400">None</span>
+                                                    )}
+                                                </div>
+                                             </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => fetchCustomerDetails(customer.id)}
+                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                                        title="View Details & Stats"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                             </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        {renderPagination()}
+                    </>
                 )}
             </div>
         </DashboardLayout>

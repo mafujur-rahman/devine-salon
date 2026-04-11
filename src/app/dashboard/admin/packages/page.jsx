@@ -18,6 +18,10 @@ export default function AdminPackages() {
     const [branches, setBranches] = useState([]);
     const [allServices, setAllServices] = useState([]);
     
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(10);
+    
     // Admin-specific filters
     const [selectedBranchFilter, setSelectedBranchFilter] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -40,6 +44,7 @@ export default function AdminPackages() {
     // Apply filters whenever filter criteria or packages change
     useEffect(() => {
         applyFilters();
+        setCurrentPage(1); // Reset to first page when filters change
     }, [selectedBranchFilter, searchTerm, packages]);
 
     const checkAuth = () => {
@@ -69,6 +74,14 @@ export default function AdminPackages() {
         
         setFilteredPackages(filtered);
     };
+
+    // Pagination calculations
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    const currentItems = filteredPackages.slice(indexOfFirstItem, indexOfLastItem);
+    const totalPages = Math.ceil(filteredPackages.length / itemsPerPage);
+
+    const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
     const fetchAllPackages = async () => {
         setLoading(true);
@@ -498,103 +511,192 @@ export default function AdminPackages() {
                         <p className="text-gray-500">No packages found.</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto rounded-xl border border-gray-200">
-                        <table className="w-full">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                                <tr>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Package Name</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Services</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Original Price</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Package Price</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">You Save</th>
-                                    <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Validity</th>
-                                    <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {filteredPackages.map((pkg, index) => {
-                                    const originalPrice = parseFloat(pkg.original_price || 0);
-                                    const packagePrice = parseFloat(pkg.package_price || 0);
-                                    const savings = originalPrice - packagePrice;
-                                    const savingsPercentage = originalPrice > 0 ? ((savings / originalPrice) * 100).toFixed(0) : 0;
-                                    const branch = branches.find(b => b.id === pkg.branch);
+                    <>
+                        <div className="overflow-x-auto rounded-xl border border-gray-200">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">SL</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Package Name</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Services</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Original Price</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Package Price</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">You Save</th>
+                                        <th className="text-left px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Validity</th>
+                                        <th className="text-right px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {currentItems.map((pkg, index) => {
+                                        const originalPrice = parseFloat(pkg.original_price || 0);
+                                        const packagePrice = parseFloat(pkg.package_price || 0);
+                                        const savings = originalPrice - packagePrice;
+                                        const savingsPercentage = originalPrice > 0 ? ((savings / originalPrice) * 100).toFixed(0) : 0;
+                                        const branch = branches.find(b => b.id === pkg.branch);
+                                        const serialNumber = indexOfFirstItem + index + 1;
 
-                                    return (
-                                        <tr key={pkg.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-4 text-sm text-gray-500 font-medium">{index + 1}</td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm font-semibold text-gray-900">#{pkg.id}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div>
-                                                    <span className="text-sm font-medium text-gray-900">{pkg.name}</span>
-                                                    {pkg.description && (
-                                                        <div className="text-xs text-gray-400 truncate max-w-xs">{pkg.description}</div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div>
-                                                    <span className="text-sm text-gray-700">{branch?.name || pkg.branch_name || `ID: ${pkg.branch}`}</span>
-                                                    {branch?.city && (
-                                                        <div className="text-xs text-gray-400">{branch.city}</div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm text-gray-700">{pkg.services?.length || 0} services</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm text-gray-500 line-through">₹{originalPrice.toFixed(2)}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm font-semibold text-[#dba627]">₹{packagePrice.toFixed(2)}</span>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                {savings > 0 ? (
+                                        return (
+                                            <tr key={pkg.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-4 text-sm text-gray-500 font-medium">{serialNumber}</td>
+                                                <td className="px-6 py-4">
                                                     <div>
-                                                        <span className="text-sm font-semibold text-green-600">₹{savings.toFixed(2)}</span>
-                                                        <span className="text-xs text-green-500 ml-1">({savingsPercentage}% off)</span>
+                                                        <span className="text-sm font-medium text-gray-900">{pkg.name}</span>
+                                                        {pkg.description && (
+                                                            <div className="text-xs text-gray-400 truncate max-w-xs">{pkg.description}</div>
+                                                        )}
                                                     </div>
-                                                ) : (
-                                                    <span className="text-sm text-gray-400">No discount</span>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <span className="text-sm text-gray-700">{pkg.validity_days} days</span>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={() => fetchPackageDetails(pkg.id)}
-                                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                        title="View Details"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeletePackage(pkg.id)}
-                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                        title="Delete"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div>
+                                                        <span className="text-sm text-gray-700">{branch?.name || pkg.branch_name || `ID: ${pkg.branch}`}</span>
+                                                        {branch?.city && (
+                                                            <div className="text-xs text-gray-400">{branch.city}</div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm text-gray-700">{pkg.services?.length || 0} services</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm text-gray-500 line-through">₹{originalPrice.toFixed(2)}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm font-semibold text-[#dba627]">₹{packagePrice.toFixed(2)}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {savings > 0 ? (
+                                                        <div>
+                                                            <span className="text-sm font-semibold text-green-600">₹{savings.toFixed(2)}</span>
+                                                            <span className="text-xs text-green-500 ml-1">({savingsPercentage}% off)</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-sm text-gray-400">No discount</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="text-sm text-gray-700">{pkg.validity_days} days</span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={() => fetchPackageDetails(pkg.id)}
+                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                            title="View Details"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeletePackage(pkg.id)}
+                                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            title="Delete"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-4 rounded-lg">
+                                <div className="flex flex-1 justify-between sm:hidden">
+                                    <button
+                                        onClick={() => paginate(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Previous
+                                    </button>
+                                    <button
+                                        onClick={() => paginate(currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="text-sm text-gray-700">
+                                            Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to <span className="font-medium">{Math.min(indexOfLastItem, filteredPackages.length)}</span> of{' '}
+                                            <span className="font-medium">{filteredPackages.length}</span> results
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                                            <button
+                                                onClick={() => paginate(currentPage - 1)}
+                                                disabled={currentPage === 1}
+                                                className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <span className="sr-only">Previous</span>
+                                                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                    <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                                                </svg>
+                                            </button>
+                                            {[...Array(totalPages).keys()].map(number => {
+                                                const pageNumber = number + 1;
+                                                // Show first page, last page, current page, and pages around current page
+                                                if (
+                                                    pageNumber === 1 ||
+                                                    pageNumber === totalPages ||
+                                                    (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
+                                                ) {
+                                                    return (
+                                                        <button
+                                                            key={pageNumber}
+                                                            onClick={() => paginate(pageNumber)}
+                                                            className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                                                                currentPage === pageNumber
+                                                                    ? 'z-10 bg-[#dba627] text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#dba627]'
+                                                                    : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                                                            }`}
+                                                        >
+                                                            {pageNumber}
+                                                        </button>
+                                                    );
+                                                } else if (
+                                                    (pageNumber === currentPage - 2 && currentPage > 3) ||
+                                                    (pageNumber === currentPage + 2 && currentPage < totalPages - 2)
+                                                ) {
+                                                    return (
+                                                        <span
+                                                            key={pageNumber}
+                                                            className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300"
+                                                        >
+                                                            ...
+                                                        </span>
+                                                    );
+                                                }
+                                                return null;
+                                            })}
+                                            <button
+                                                onClick={() => paginate(currentPage + 1)}
+                                                disabled={currentPage === totalPages}
+                                                className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <span className="sr-only">Next</span>
+                                                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                    <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        </nav>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </DashboardLayout>
