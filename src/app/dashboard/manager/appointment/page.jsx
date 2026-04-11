@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -172,6 +171,41 @@ export default function Appointments() {
             setFilteredCustomers(response.data.data || []);
         } catch (error) {
             console.error('Error fetching customers:', error);
+        }
+    };
+
+    const fetchAppointmentDetails = async (appointmentId) => {
+        setLoading(true);
+        try {
+            const response = await axios.get(`${API_BASE}/appointment/${appointmentId}/`);
+            let appointmentData = response.data.data || response.data;
+            
+            // Parse package_details if stored as string
+            if (appointmentData.package_details && typeof appointmentData.package_details === 'string') {
+                try {
+                    appointmentData.package_details = JSON.parse(appointmentData.package_details);
+                } catch (e) {
+                    appointmentData.package_details = [];
+                }
+            }
+            
+            // Also check for package field
+            if (appointmentData.package && !appointmentData.package_name && appointmentData.package_details && appointmentData.package_details.length > 0) {
+                appointmentData.package_name = appointmentData.package_details[0].package_name;
+            }
+            
+            setSelectedAppointment(appointmentData);
+            setShowDetailsModal(true);
+        } catch (error) {
+            console.error('Error fetching appointment details:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.response?.data?.message || 'Failed to fetch appointment details',
+                confirmButtonColor: '#dba627'
+            });
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -523,36 +557,6 @@ export default function Appointments() {
         }
     };
 
-    const fetchAppointmentDetails = async (appointmentId) => {
-        setLoading(true);
-        try {
-            const response = await axios.get(`${API_BASE}/appointment/${appointmentId}/`);
-            let appointmentData = response.data.data;
-
-            // Parse package_details if stored as string
-            if (appointmentData.package_details && typeof appointmentData.package_details === 'string') {
-                try {
-                    appointmentData.package_details = JSON.parse(appointmentData.package_details);
-                } catch (e) {
-                    appointmentData.package_details = [];
-                }
-            }
-
-            setSelectedAppointment(appointmentData);
-            setShowDetailsModal(true);
-        } catch (error) {
-            console.error('Error fetching appointment details:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Failed to fetch appointment details',
-                confirmButtonColor: '#dba627'
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const addService = () => {
         if (serviceInput) {
             const service = services.find(s => s.id === parseInt(serviceInput));
@@ -792,27 +796,581 @@ export default function Appointments() {
                     </button>
                 </div>
 
-                {/* Create Appointment Form Modal - Keep as is */}
+                {/* Create Appointment Form Modal */}
                 {showCreateForm && (
-                    // ... (your existing create form modal code)
-                    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-                        {/* ... rest of your create form modal ... */}
+                    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4 overflow-y-auto">
+                        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                                <h2 className="text-xl font-bold text-gray-800">Create New Appointment</h2>
+                                <button
+                                    onClick={() => {
+                                        setShowCreateForm(false);
+                                        resetForm();
+                                    }}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                                >
+                                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <form onSubmit={handleCreateAppointment} className="p-6">
+                                {/* Customer Type Selection */}
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Customer Type</label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center">
+                                            <input
+                                                type="radio"
+                                                value="existing"
+                                                checked={customerType === 'existing'}
+                                                onChange={(e) => setCustomerType(e.target.value)}
+                                                className="mr-2"
+                                            />
+                                            Existing Customer
+                                        </label>
+                                        <label className="flex items-center">
+                                            <input
+                                                type="radio"
+                                                value="new"
+                                                checked={customerType === 'new'}
+                                                onChange={(e) => setCustomerType(e.target.value)}
+                                                className="mr-2"
+                                            />
+                                            New Customer
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Customer Information */}
+                                {customerType === 'existing' ? (
+                                    <div className="mb-6">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Search Customer by Phone</label>
+                                        <input
+                                            type="text"
+                                            value={customerSearch}
+                                            onChange={(e) => setCustomerSearch(e.target.value)}
+                                            placeholder="Enter phone number..."
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                        />
+                                        <select
+                                            name="customer"
+                                            value={formData.customer}
+                                            onChange={handleInputChange}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627] mt-2"
+                                            required
+                                        >
+                                            <option value="">Select Customer</option>
+                                            {filteredCustomers.map((customer) => (
+                                                <option key={customer.id} value={customer.id}>
+                                                    {customer.first_name} {customer.last_name} - {customer.phone}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">First Name *</label>
+                                            <input
+                                                type="text"
+                                                name="first_name"
+                                                value={formData.first_name}
+                                                onChange={handleInputChange}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                                            <input
+                                                type="text"
+                                                name="last_name"
+                                                value={formData.last_name}
+                                                onChange={handleInputChange}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Phone *</label>
+                                            <input
+                                                type="text"
+                                                name="phone"
+                                                value={formData.phone}
+                                                onChange={handleInputChange}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                            <input
+                                                type="email"
+                                                name="email"
+                                                value={formData.email}
+                                                onChange={handleInputChange}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp</label>
+                                            <input
+                                                type="text"
+                                                name="whatsapp"
+                                                value={formData.whatsapp}
+                                                onChange={handleInputChange}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                                            <select
+                                                name="gender"
+                                                value={formData.gender}
+                                                onChange={handleInputChange}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            >
+                                                <option value="male">Male</option>
+                                                <option value="female">Female</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                                            <textarea
+                                                name="address"
+                                                value={formData.address}
+                                                onChange={handleInputChange}
+                                                rows="2"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Appointment Details */}
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Staff *</label>
+                                        <select
+                                            name="staff"
+                                            value={formData.staff}
+                                            onChange={handleInputChange}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            required
+                                        >
+                                            <option value="">Select Staff</option>
+                                            {staff.map((staffMember) => (
+                                                <option key={staffMember.id} value={staffMember.id}>
+                                                    {staffMember.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                                        <input
+                                            type="date"
+                                            name="date"
+                                            value={formData.date}
+                                            onChange={handleInputChange}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Time *</label>
+                                        <input
+                                            type="time"
+                                            name="time"
+                                            value={formData.time}
+                                            onChange={handleInputChange}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Appointment Type</label>
+                                        <select
+                                            name="appointment_type"
+                                            value={formData.appointment_type}
+                                            onChange={handleInputChange}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                        >
+                                            <option value="walkin">Walk-in</option>
+                                            <option value="online">Online</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Services Selection */}
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Add Services</label>
+                                    <div className="flex gap-2 mb-2">
+                                        <select
+                                            value={serviceInput}
+                                            onChange={(e) => setServiceInput(e.target.value)}
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                        >
+                                            <option value="">Select a service</option>
+                                            {services.map((service) => (
+                                                <option key={service.id} value={service.id}>
+                                                    {service.name} - ₹{service.price} ({service.duration} mins)
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={addService}
+                                            className="px-4 py-2 bg-[#dba627] text-white rounded-lg hover:bg-[#c49520] transition-colors cursor-pointer"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                    {selectedServices.length > 0 && (
+                                        <div className="space-y-2 mt-3">
+                                            {selectedServices.map((service, idx) => (
+                                                <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                                    <div>
+                                                        <p className="font-medium text-gray-800">{service.service_name}</p>
+                                                        <p className="text-sm text-gray-500">Duration: {service.duration} mins</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-semibold text-[#dba627]">₹{service.price}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeService(idx)}
+                                                            className="text-red-600 hover:text-red-800 cursor-pointer"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Packages Selection */}
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Add Packages</label>
+                                    <div className="flex gap-2 mb-2">
+                                        <select
+                                            value={packageInput}
+                                            onChange={(e) => setPackageInput(e.target.value)}
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                        >
+                                            <option value="">Select a package</option>
+                                            {packages.map((pkg) => (
+                                                <option key={pkg.id} value={pkg.id}>
+                                                    {pkg.name} - ₹{pkg.package_price}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={addPackage}
+                                            className="px-4 py-2 bg-[#dba627] text-white rounded-lg hover:bg-[#c49520] transition-colors cursor-pointer"
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                    {selectedPackages.length > 0 && (
+                                        <div className="space-y-2 mt-3">
+                                            {selectedPackages.map((pkg, idx) => (
+                                                <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                                    <div>
+                                                        <p className="font-medium text-gray-800">{pkg.package_name}</p>
+                                                        <p className="text-sm text-gray-500">Validity: {pkg.validity_days} days</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-semibold text-[#dba627]">₹{pkg.package_price}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removePackage(idx)}
+                                                            className="text-red-600 hover:text-red-800 cursor-pointer"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Notes */}
+                                <div className="mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                                    <textarea
+                                        name="notes"
+                                        value={formData.notes}
+                                        onChange={handleInputChange}
+                                        rows="3"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                        placeholder="Additional notes..."
+                                    />
+                                </div>
+
+                                {/* Total Amount */}
+                                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-semibold text-gray-700">Total Amount:</span>
+                                        <span className="text-2xl font-bold text-[#dba627]">₹{calculateTotalAmount()}</span>
+                                    </div>
+                                </div>
+
+                                {/* Form Actions */}
+                                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowCreateForm(false);
+                                            resetForm();
+                                        }}
+                                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={!isFormValid() || loading}
+                                        className={`px-4 py-2 bg-[#dba627] text-white rounded-lg transition-colors cursor-pointer ${(!isFormValid() || loading) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#c49520]'
+                                            }`}
+                                    >
+                                        {loading ? 'Creating...' : 'Create Appointment'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 )}
 
-                {/* Appointment Details Modal - Keep as is */}
+                {/* Appointment Details Modal */}
                 {showDetailsModal && selectedAppointment && (
-                    // ... (your existing details modal code)
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-                        {/* ... rest of your details modal ... */}
+                        <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-800">Appointment Details</h2>
+                                    <p className="text-sm text-gray-500">ID: {selectedAppointment.id}</p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setShowDetailsModal(false);
+                                        setSelectedAppointment(null);
+                                    }}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                                >
+                                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            <div className="p-6">
+                                {/* Customer Information */}
+                                <div className="mb-6">
+                                    <h3 className="text-lg font-semibold text-gray-800 mb-3 border-b border-gray-200 pb-2">Customer Information</h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-sm text-gray-500">Customer Name</p>
+                                            <p className="font-medium text-gray-800">{selectedAppointment.customer_name || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Phone</p>
+                                            <p className="font-medium text-gray-800">{selectedAppointment.phone || 'N/A'}</p>
+                                        </div>
+                                        {selectedAppointment.email && (
+                                            <div>
+                                                <p className="text-sm text-gray-500">Email</p>
+                                                <p className="font-medium text-gray-800">{selectedAppointment.email}</p>
+                                            </div>
+                                        )}
+                                        {selectedAppointment.address && (
+                                            <div>
+                                                <p className="text-sm text-gray-500">Address</p>
+                                                <p className="font-medium text-gray-800">{selectedAppointment.address}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Appointment Information */}
+                                <div className="mb-6">
+                                    <h3 className="text-lg font-semibold text-gray-800 mb-3 border-b border-gray-200 pb-2">Appointment Information</h3>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p className="text-sm text-gray-500">Date</p>
+                                            <p className="font-medium text-gray-800">{selectedAppointment.date}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Time</p>
+                                            <p className="font-medium text-gray-800">{selectedAppointment.time}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Staff</p>
+                                            <p className="font-medium text-gray-800">{selectedAppointment.staff_name || `ID: ${selectedAppointment.staff}`}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Appointment Type</p>
+                                            <p className="font-medium text-gray-800 capitalize">{selectedAppointment.appointment_type}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Status</p>
+                                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(selectedAppointment.status)}`}>
+                                                {selectedAppointment.status?.toUpperCase()}
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Total Amount</p>
+                                            <p className="font-bold text-[#dba627]">₹{selectedAppointment.total_amount}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Services */}
+                                {selectedAppointment.items && selectedAppointment.items.length > 0 && (
+                                    <div className="mb-6">
+                                        <h3 className="text-lg font-semibold text-gray-800 mb-3 border-b border-gray-200 pb-2">Services</h3>
+                                        <div className="space-y-2">
+                                            {selectedAppointment.items.map((item, idx) => (
+                                                <div key={idx} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                                    <div>
+                                                        <p className="font-medium text-gray-800">{item.service_name}</p>
+                                                        <p className="text-sm text-gray-500">Duration: {item.duration || 0} mins</p>
+                                                    </div>
+                                                    <p className="font-semibold text-[#dba627]">₹{item.price}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Packages */}
+                                {selectedAppointment.package_details && selectedAppointment.package_details.length > 0 && (
+                                    <div className="mb-6">
+                                        <h3 className="text-lg font-semibold text-gray-800 mb-3 border-b border-gray-200 pb-2">Packages</h3>
+                                        <div className="space-y-2">
+                                            {selectedAppointment.package_details.map((pkg, idx) => (
+                                                <div key={idx} className="p-3 bg-gray-50 rounded-lg">
+                                                    <div className="flex justify-between items-center mb-2">
+                                                        <p className="font-medium text-gray-800">{pkg.package_name}</p>
+                                                        <p className="font-semibold text-[#dba627]">₹{pkg.package_price}</p>
+                                                    </div>
+                                                    {pkg.services_count && (
+                                                        <p className="text-sm text-gray-500">Includes {pkg.services_count} services</p>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Notes */}
+                                {selectedAppointment.notes && (
+                                    <div className="mb-6">
+                                        <h3 className="text-lg font-semibold text-gray-800 mb-3 border-b border-gray-200 pb-2">Notes</h3>
+                                        <div className="p-3 bg-gray-50 rounded-lg">
+                                            <p className="text-gray-700">{selectedAppointment.notes}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                                    <button
+                                        onClick={() => {
+                                            setShowDetailsModal(false);
+                                            setSelectedAppointment(null);
+                                        }}
+                                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+                                    >
+                                        Close
+                                    </button>
+                                    {selectedAppointment.notes && (
+                                        <button
+                                            onClick={handleEditNotes}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+                                        >
+                                            Edit Notes
+                                        </button>
+                                    )}
+                                    {selectedAppointment.status !== 'completed' && selectedAppointment.status !== 'cancelled' && (
+                                        <>
+                                            {getNextStatus(selectedAppointment.status) && (
+                                                <button
+                                                    onClick={() => handleQuickStatusUpdate(selectedAppointment)}
+                                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+                                                >
+                                                    Move to {getNextStatus(selectedAppointment.status).toUpperCase()}
+                                                </button>
+                                            )}
+                                            {CANCELLABLE_STATUSES.includes(selectedAppointment.status) && (
+                                                <button
+                                                    onClick={() => handleCancelAppointment(selectedAppointment)}
+                                                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
+                                                >
+                                                    Cancel Appointment
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 
-                {/* Update Status Modal - Keep as is */}
+                {/* Update Status Modal */}
                 {showUpdateStatusModal && selectedAppointment && (
-                    // ... (your existing update status modal code)
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
-                        {/* ... rest of your update status modal ... */}
+                        <div className="bg-white rounded-2xl max-w-md w-full">
+                            <div className="border-b border-gray-200 px-6 py-4">
+                                <h2 className="text-xl font-bold text-gray-800">Update Status</h2>
+                            </div>
+                            <form onSubmit={handleUpdateStatus} className="p-6">
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Status</label>
+                                    <select
+                                        value={statusUpdateData.status}
+                                        onChange={(e) => setStatusUpdateData({ status: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                    >
+                                        {STATUS_FLOW.map((status) => (
+                                            <option key={status} value={status}>
+                                                {status.toUpperCase()}
+                                            </option>
+                                        ))}
+                                        <option value="cancelled">CANCELLED</option>
+                                    </select>
+                                </div>
+                                <div className="flex justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowUpdateStatusModal(false);
+                                            setSelectedAppointment(null);
+                                        }}
+                                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="px-4 py-2 bg-[#dba627] text-white rounded-lg hover:bg-[#c49520] transition-colors cursor-pointer"
+                                    >
+                                        {loading ? 'Updating...' : 'Update Status'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 )}
 
@@ -932,7 +1490,7 @@ export default function Appointments() {
                                                     <div className="flex items-center justify-end gap-2">
                                                         <button
                                                             onClick={() => fetchAppointmentDetails(appointment.id)}
-                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                                                             title="View Details"
                                                         >
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -945,7 +1503,7 @@ export default function Appointments() {
                                                                 {nextStatus && (
                                                                     <button
                                                                         onClick={() => handleQuickStatusUpdate(appointment)}
-                                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors cursor-pointer"
                                                                         title={`Move to ${nextStatus.toUpperCase()}`}
                                                                     >
                                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -956,7 +1514,7 @@ export default function Appointments() {
                                                                 {canCancel && (
                                                                     <button
                                                                         onClick={() => handleCancelAppointment(appointment)}
-                                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                                                         title="Cancel"
                                                                     >
                                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -966,7 +1524,7 @@ export default function Appointments() {
                                                                 )}
                                                                 <button
                                                                     onClick={() => handleDeleteAppointment(appointment.id)}
-                                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                                                     title="Delete"
                                                                 >
                                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

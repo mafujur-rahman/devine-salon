@@ -679,7 +679,7 @@ export default function CreateAppointment() {
                                     {currentAppointments.length === 0 ? (
                                         <tr>
                                             <td colSpan="9" className="px-6 py-12 text-center text-gray-500">
-                                                No appointments found. Click "Book Appointment" to schedule one.
+                                                No appointments found. Click Book Appointment to schedule one.
                                             </td>
                                         </tr>
                                     ) : (
