@@ -93,7 +93,7 @@ export default function Profile({ isOpen, onClose, onUserDataUpdate }) {
     setSuccessMessage(null);
     
     try {
-      const result = await apiFetch('/user/profile/update/', {
+      const result = await apiFetch('/user/profile-update/', {
         method: 'PUT',
         body: JSON.stringify({
           first_name: editFormData.first_name,
