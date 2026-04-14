@@ -437,7 +437,7 @@ export default function Packages() {
 
     return (
         <DashboardLayout>
-            <div className="px-2">
+            <div className="px-3">
                 {/* Header with Create Button */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>

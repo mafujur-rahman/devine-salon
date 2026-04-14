@@ -298,7 +298,7 @@ export default function ManagerDashboard() {
                     </div>
                 </div>
             ) : (
-                <div className="space-y-6 px-2">
+                <div className="space-y-6 px-3">
                     {/* Page Header */}
                     <div className="mb-8">
                         <h1 className="text-3xl font-bold text-gray-800 mb-2">

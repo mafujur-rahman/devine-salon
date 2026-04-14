@@ -893,7 +893,7 @@ export default function AdminAppointments() {
 
     return (
         <DashboardLayout>
-            <div>
+            <div className="px-3">
                 {/* Header with Create Appointment Button */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>

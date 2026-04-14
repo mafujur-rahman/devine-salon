@@ -21,8 +21,15 @@ async function apiFetch(endpoint, options = {}) {
     });
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "API request failed");
+        let errorMessage = "API request failed";
+        try {
+            const error = await response.json();
+            errorMessage = error.message || error.detail || "API request failed";
+        } catch (e) {
+            // If response is not JSON, use status text
+            errorMessage = response.statusText || `HTTP ${response.status}`;
+        }
+        throw new Error(errorMessage);
     }
 
     return response.json();
@@ -34,10 +41,12 @@ export default function AdminCustomers() {
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showCreateForm, setShowCreateForm] = useState(false);
+    const [showEditForm, setShowEditForm] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [customerStats, setCustomerStats] = useState(null);
     const [loadingStats, setLoadingStats] = useState(false);
+    const [editingCustomer, setEditingCustomer] = useState(null);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -77,13 +86,13 @@ export default function AdminCustomers() {
             const data = await apiFetch('/users/customers/');
             let customersData = data.data || data.customers || data.results || [];
             setCustomers(customersData);
-            setCurrentPage(1); // Reset to first page when data loads
+            setCurrentPage(1);
         } catch (error) {
             console.error('Error fetching customers:', error);
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: 'Failed to fetch customers',
+                text: error.message || 'Failed to fetch customers',
                 confirmButtonColor: '#dba627'
             });
         } finally {
@@ -96,20 +105,19 @@ export default function AdminCustomers() {
         setShowDetailsModal(true);
 
         try {
-            // Fetch both customer details and stats in parallel
             const [detailsData, statsData] = await Promise.all([
                 apiFetch(`/users/${customerId}/`),
                 apiFetch(`/user/customers/${customerId}/stats/`)
             ]);
 
-            setSelectedCustomer(detailsData.data);
-            setCustomerStats(statsData.data);
+            setSelectedCustomer(detailsData.data || detailsData);
+            setCustomerStats(statsData.data || statsData);
         } catch (error) {
             console.error('Error fetching customer details:', error);
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
-                text: 'Failed to fetch customer details',
+                text: error.message || 'Failed to fetch customer details',
                 confirmButtonColor: '#dba627'
             });
             setShowDetailsModal(false);
@@ -158,6 +166,111 @@ export default function AdminCustomers() {
         }
     };
 
+    const handleEditCustomer = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            // Try different possible endpoints for updating customer
+            let result;
+            try {
+                result = await apiFetch(`/users/${editingCustomer.id}/`, {
+                    method: 'PUT',
+                    body: JSON.stringify(formData)
+                });
+            } catch (error) {
+                // If PUT fails, try PATCH
+                result = await apiFetch(`/users/${editingCustomer.id}/`, {
+                    method: 'PATCH',
+                    body: JSON.stringify(formData)
+                });
+            }
+
+            if (result.success || result.id || result.data) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: 'Customer updated successfully!',
+                    confirmButtonColor: '#dba627'
+                });
+                setShowEditForm(false);
+                setEditingCustomer(null);
+                resetForm();
+                fetchCustomers();
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: result.message || 'Failed to update customer',
+                    confirmButtonColor: '#dba627'
+                });
+            }
+        } catch (error) {
+            console.error('Error updating customer:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.message || 'Failed to update customer. Please check if you have permission.',
+                confirmButtonColor: '#dba627'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteCustomer = async (customer) => {
+        const result = await Swal.fire({
+            title: 'Are you sure?',
+            text: `You are about to delete customer "${customer.first_name} ${customer.last_name}". This action cannot be undone!`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dba627',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel'
+        });
+
+        if (result.isConfirmed) {
+            setLoading(true);
+            try {
+                await apiFetch(`/users/${customer.id}/`, {
+                    method: 'DELETE'
+                });
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted!',
+                    text: 'Customer has been deleted successfully.',
+                    confirmButtonColor: '#dba627'
+                });
+                fetchCustomers();
+            } catch (error) {
+                console.error('Error deleting customer:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.message || 'Failed to delete customer',
+                    confirmButtonColor: '#dba627'
+                });
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    const openEditForm = (customer) => {
+        setEditingCustomer(customer);
+        setFormData({
+            phone: customer.phone || '',
+            first_name: customer.first_name || '',
+            last_name: customer.last_name || '',
+            email: customer.email || '',
+            whatsapp: customer.whatsapp || '',
+            gender: customer.gender || 'male',
+            address: customer.address || ''
+        });
+        setShowEditForm(true);
+    };
+
     const resetForm = () => setFormData({
         phone: '',
         first_name: '',
@@ -175,21 +288,6 @@ export default function AdminCustomers() {
 
     const getInitials = (firstName, lastName) => {
         return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
-    };
-
-    const getStatusBadgeColor = (status) => {
-        const colors = {
-            'booked': 'bg-yellow-100 text-yellow-800',
-            'approved': 'bg-blue-100 text-blue-800',
-            'in_progress': 'bg-purple-100 text-purple-800',
-            'completed': 'bg-green-100 text-green-800',
-            'cancelled': 'bg-red-100 text-red-800'
-        };
-        return colors[status] || 'bg-gray-100 text-gray-800';
-    };
-
-    const formatStatusLabel = (status) => {
-        return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     };
 
     // Pagination helper functions
@@ -274,7 +372,7 @@ export default function AdminCustomers() {
 
     return (
         <DashboardLayout>
-            <div>
+            <div className="px-3">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>
@@ -303,15 +401,10 @@ export default function AdminCustomers() {
                 {showCreateForm && (
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
                         <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-xl flex flex-col">
-                            {/* HEADER */}
                             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                                 <div>
-                                    <h2 className="text-lg font-semibold text-gray-900">
-                                        Add New Customer
-                                    </h2>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Fill in the details to create a new customer
-                                    </p>
+                                    <h2 className="text-lg font-semibold text-gray-900">Add New Customer</h2>
+                                    <p className="text-xs text-gray-500 mt-1">Fill in the details to create a new customer</p>
                                 </div>
                                 <button
                                     onClick={() => setShowCreateForm(false)}
@@ -321,14 +414,11 @@ export default function AdminCustomers() {
                                 </button>
                             </div>
 
-                            {/* BODY */}
                             <div className="overflow-y-auto px-6 py-5">
                                 <form onSubmit={handleCreateCustomer}>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Phone *
-                                            </label>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Phone *</label>
                                             <div className="relative">
                                                 <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                                                     <span className="text-gray-500 text-sm flex items-center gap-1">
@@ -345,108 +435,236 @@ export default function AdminCustomers() {
                                                     className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                     placeholder="98765 43210"
                                                 />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">First Name *</label>
+                                            <input
+                                                type="text"
+                                                name="first_name"
+                                                value={formData.first_name}
+                                                onChange={handleInputChange}
+                                                required
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="Rahul"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Last Name</label>
+                                            <input
+                                                type="text"
+                                                name="last_name"
+                                                value={formData.last_name}
+                                                onChange={handleInputChange}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="Sharma"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Email</label>
+                                            <input
+                                                type="email"
+                                                name="email"
+                                                value={formData.email}
+                                                onChange={handleInputChange}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="rahul.sharma@example.com"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">WhatsApp</label>
+                                            <input
+                                                type="tel"
+                                                name="whatsapp"
+                                                value={formData.whatsapp}
+                                                onChange={handleInputChange}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="+91 98765 43210"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Gender</label>
+                                            <select
+                                                name="gender"
+                                                value={formData.gender}
+                                                onChange={handleInputChange}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            >
+                                                <option value="male">Male</option>
+                                                <option value="female">Female</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Address</label>
+                                            <textarea
+                                                name="address"
+                                                value={formData.address}
+                                                onChange={handleInputChange}
+                                                rows="2"
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="Flat 12, MG Road, Mumbai, Maharashtra"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCreateForm(false)}
+                                            className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={loading}
+                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                                        >
+                                            {loading ? 'Creating...' : 'Create Customer'}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Edit Form Modal */}
+                {showEditForm && editingCustomer && (
+                    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+                        <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-xl flex flex-col">
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">Edit Customer</h2>
+                                    <p className="text-xs text-gray-500 mt-1">Update customer information</p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setShowEditForm(false);
+                                        setEditingCustomer(null);
+                                        resetForm();
+                                    }}
+                                    className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 cursor-pointer"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="overflow-y-auto px-6 py-5">
+                                <form onSubmit={handleEditCustomer}>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Phone *</label>
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                    <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                        <span className="text-base">🇮🇳</span>
+                                                        <span>+91</span>
+                                                    </span>
                                                 </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                    First Name *
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="first_name"
-                                                    value={formData.first_name}
-                                                    onChange={handleInputChange}
-                                                    required
-                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                    placeholder="Rahul"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                    Last Name
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    name="last_name"
-                                                    value={formData.last_name}
-                                                    onChange={handleInputChange}
-                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                    placeholder="Sharma"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                    Email
-                                                </label>
-                                                <input
-                                                    type="email"
-                                                    name="email"
-                                                    value={formData.email}
-                                                    onChange={handleInputChange}
-                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                    placeholder="rahul.sharma@example.com"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                    WhatsApp
-                                                </label>
                                                 <input
                                                     type="tel"
-                                                    name="whatsapp"
-                                                    value={formData.whatsapp}
+                                                    name="phone"
+                                                    value={formData.phone}
                                                     onChange={handleInputChange}
-                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                    placeholder="+91 98765 43210"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                    Gender
-                                                </label>
-                                                <select
-                                                    name="gender"
-                                                    value={formData.gender}
-                                                    onChange={handleInputChange}
-                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                >
-                                                    <option value="male">Male</option>
-                                                    <option value="female">Female</option>
-                                                    <option value="other">Other</option>
-                                                </select>
-                                            </div>
-                                            <div className="md:col-span-2">
-                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                    Address
-                                                </label>
-                                                <textarea
-                                                    name="address"
-                                                    value={formData.address}
-                                                    onChange={handleInputChange}
-                                                    rows="2"
-                                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                    placeholder="Flat 12, MG Road, Mumbai, Maharashtra"
+                                                    required
+                                                    className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="98765 43210"
                                                 />
                                             </div>
                                         </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">First Name *</label>
+                                            <input
+                                                type="text"
+                                                name="first_name"
+                                                value={formData.first_name}
+                                                onChange={handleInputChange}
+                                                required
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="Rahul"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Last Name</label>
+                                            <input
+                                                type="text"
+                                                name="last_name"
+                                                value={formData.last_name}
+                                                onChange={handleInputChange}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="Sharma"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Email</label>
+                                            <input
+                                                type="email"
+                                                name="email"
+                                                value={formData.email}
+                                                onChange={handleInputChange}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="rahul.sharma@example.com"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">WhatsApp</label>
+                                            <input
+                                                type="tel"
+                                                name="whatsapp"
+                                                value={formData.whatsapp}
+                                                onChange={handleInputChange}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="+91 98765 43210"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Gender</label>
+                                            <select
+                                                name="gender"
+                                                value={formData.gender}
+                                                onChange={handleInputChange}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                            >
+                                                <option value="male">Male</option>
+                                                <option value="female">Female</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Address</label>
+                                            <textarea
+                                                name="address"
+                                                value={formData.address}
+                                                onChange={handleInputChange}
+                                                rows="2"
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="Flat 12, MG Road, Mumbai, Maharashtra"
+                                            />
+                                        </div>
+                                    </div>
 
-                                        {/* FOOTER */}
-                                        <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowCreateForm(false)}
-                                                className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                disabled={loading}
-                                                className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
-                                            >
-                                                {loading ? 'Creating...' : 'Create Customer'}
-                                            </button>
-                                        </div>
+                                    <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowEditForm(false);
+                                                setEditingCustomer(null);
+                                                resetForm();
+                                            }}
+                                            className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={loading}
+                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                                        >
+                                            {loading ? 'Updating...' : 'Update Customer'}
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
                         </div>
@@ -457,15 +675,10 @@ export default function AdminCustomers() {
                 {showDetailsModal && selectedCustomer && (
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4 overflow-y-auto">
                         <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-xl flex flex-col">
-                            {/* HEADER */}
                             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                                 <div>
-                                    <h2 className="text-lg font-semibold text-gray-900">
-                                        Customer Details & Statistics
-                                    </h2>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Complete customer information and activity stats
-                                    </p>
+                                    <h2 className="text-lg font-semibold text-gray-900">Customer Details & Statistics</h2>
+                                    <p className="text-xs text-gray-500 mt-1">Complete customer information and activity stats</p>
                                 </div>
                                 <button
                                     onClick={() => {
@@ -479,7 +692,6 @@ export default function AdminCustomers() {
                                 </button>
                             </div>
 
-                            {/* BODY */}
                             <div className="overflow-y-auto px-6 py-5">
                                 {loadingStats ? (
                                     <div className="flex justify-center items-center py-12">
@@ -487,7 +699,6 @@ export default function AdminCustomers() {
                                     </div>
                                 ) : (
                                     <>
-                                        {/* Basic Information Section */}
                                         <div className="mb-8">
                                             <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                                 <svg className="w-5 h-5 text-[#dba627]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -496,46 +707,37 @@ export default function AdminCustomers() {
                                                 Basic Information
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-gray-50 p-5 rounded-xl">
-
                                                 <div>
-                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                                                        Role
-                                                    </label>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Role</label>
                                                     <p className="text-sm text-gray-900 capitalize">{selectedCustomer.role}</p>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                                                        Full Name
-                                                    </label>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Full Name</label>
                                                     <p className="text-base font-bold text-gray-900">
                                                         {selectedCustomer.first_name} {selectedCustomer.last_name}
                                                     </p>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                                                        Phone
-                                                    </label>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Phone</label>
                                                     <p className="text-sm text-gray-900">{selectedCustomer.phone}</p>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                                                        Email
-                                                    </label>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Email</label>
                                                     <p className="text-sm text-gray-900">{selectedCustomer.email || 'Not provided'}</p>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
-                                                        Address
-                                                    </label>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">WhatsApp</label>
+                                                    <p className="text-sm text-gray-900">{selectedCustomer.whatsapp || 'Not provided'}</p>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">Address</label>
                                                     <p className="text-sm text-gray-900">{selectedCustomer.address || 'Not provided'}</p>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Statistics Section */}
                                         {customerStats && (
                                             <>
-                                                {/* Key Metrics */}
                                                 <div className="mb-8">
                                                     <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                                         <svg className="w-5 h-5 text-[#dba627]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -563,7 +765,6 @@ export default function AdminCustomers() {
                                                     </div>
                                                 </div>
 
-                                                {/* Appointment Status Breakdown */}
                                                 <div className="mb-8">
                                                     <h3 className="text-md font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                                         <svg className="w-5 h-5 text-[#dba627]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -595,7 +796,6 @@ export default function AdminCustomers() {
                                                     </div>
                                                 </div>
 
-                                                {/* Branches and Recent Activity */}
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                     <div>
                                                         <h3 className="text-md font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -655,7 +855,6 @@ export default function AdminCustomers() {
                                 )}
                             </div>
 
-                            {/* FOOTER */}
                             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
                                 <button
                                     onClick={() => {
@@ -673,7 +872,7 @@ export default function AdminCustomers() {
                 )}
 
                 {/* Customers Table */}
-                {loading && !showCreateForm ? (
+                {loading && !showCreateForm && !showEditForm ? (
                     <div className="flex justify-center items-center h-64">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#dba627]"></div>
                     </div>
@@ -789,6 +988,24 @@ export default function AdminCustomers() {
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openEditForm(customer)}
+                                                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors cursor-pointer"
+                                                        title="Edit Customer"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteCustomer(customer)}
+                                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                                        title="Delete Customer"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                         </svg>
                                                     </button>
                                                 </div>

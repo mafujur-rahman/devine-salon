@@ -617,7 +617,7 @@ export default function Products() {
 
     return (
         <DashboardLayout>
-            <div className="px-2">
+            <div className="px-3">
                 {/* Header with Tabs */}
                 <div className="mb-6 border-b-2 border-[#dba627] pb-4">
                     <h1 className="text-3xl font-bold text-black tracking-tight">

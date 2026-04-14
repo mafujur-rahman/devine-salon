@@ -606,7 +606,7 @@ export default function AdminStaff() {
 
     return (
         <DashboardLayout>
-            <div>
+            <div className="px-3">
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>
                         <h1 className="text-3xl font-bold text-black tracking-tight">

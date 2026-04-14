@@ -15,7 +15,7 @@ const Branches = () => {
     return (
         <DashboardLayout>
             <div className="min-h-screen bg-white">
-                <div className="px-4">
+                <div className="px-3">
                     {/* Header */}
                     <div className="flex justify-between items-center mb-10 border-b-2 border-[#dba627] pb-4">
                         <div>
