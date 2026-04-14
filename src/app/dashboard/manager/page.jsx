@@ -19,6 +19,7 @@ import {
     MdNavigateNext
 } from "react-icons/md";
 import DashboardLayout from "@/app/page";
+import { PiCurrencyInrBold } from "react-icons/pi";
 
 // API base URL
 const API_BASE = "https://saloon.mrshakil.com/api";
@@ -261,7 +262,7 @@ export default function ManagerDashboard() {
         {
             title: "Monthly Revenue",
             value: formatCurrency(stats.monthlyRevenue),
-            icon: MdAttachMoney,
+            icon: PiCurrencyInrBold,
             change: "+12%",
             progress: Math.min(100, Math.round((stats.monthlyRevenue / 10000) * 100))
         },

@@ -7,7 +7,6 @@ import {
     MdBarChart,
     MdPeople,
     MdContentCut,
-    MdAttachMoney,
     MdEvent,
     MdPendingActions,
     MdTaskAlt,
@@ -17,6 +16,7 @@ import {
     MdPerson,
     MdWork
 } from "react-icons/md";
+import { PiCurrencyInrBold } from "react-icons/pi";
 
 const API_BASE = "https://saloon.mrshakil.com/api";
 
@@ -367,7 +367,7 @@ export default function AdminDashboard() {
         { 
             title: "Total Revenue", 
             value: formatCurrency(stats.totalRevenue), 
-            icon: MdAttachMoney, 
+            icon: PiCurrencyInrBold, 
             change: "+15%", 
             progress: Math.min(100, Math.round((stats.totalRevenue / 50000) * 100)) 
         },
