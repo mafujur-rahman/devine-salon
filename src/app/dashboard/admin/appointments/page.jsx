@@ -1100,7 +1100,7 @@ export default function AdminAppointments() {
                                                         value={formData.whatsapp}
                                                         onChange={handleInputChange}
                                                         className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="9876543210"
+                                                        placeholder="+919876543210"
                                                     />
                                                 </div>
                                                 <div>

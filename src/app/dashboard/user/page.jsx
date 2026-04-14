@@ -99,7 +99,7 @@ export default function UserDashboard() {
     return (
         <DashboardLayout>
             <div className="bg-gray-50 min-h-screen">
-                <div className="px-4 py-8">
+                <div className="px-3 py-8">
                     {/* Welcome Section */}
                     <div className="mb-8">
                         <h2 className="text-3xl font-bold text-gray-900">

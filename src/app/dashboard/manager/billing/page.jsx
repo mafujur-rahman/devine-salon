@@ -485,7 +485,7 @@ export default function Billing() {
                             ${branchInfo ? `
                                 <p>${branchInfo.name}</p>
                                 <p>${branchInfo.address}, ${branchInfo.city}</p>
-                                <p>Phone: ${branchInfo.phone || 'N/A'} | Email: ${branchInfo.email || 'N/A'}</p>
+                                <p>Phone: +91${branchInfo.phone || 'N/A'} | Email: ${branchInfo.email || 'N/A'}</p>
                                 <p>GST: ${branchInfo.gst_number || 'N/A'}</p>
                             ` : '<p>Your Salon Address Here</p>'}
                         </div>
@@ -499,7 +499,7 @@ export default function Billing() {
                         <p><strong>Payment Method:</strong> ${invoice.payment_method?.toUpperCase()}</p>
                         <p><strong>Served By:</strong> ${invoice.served_by?.name}</p>
                         <p><strong>Customer Name:</strong> ${invoice.customer?.name}</p>
-                        <p><strong>Customer Phone:</strong> ${invoice.customer?.phone}</p>
+                        <p><strong>Customer Phone:</strong> +91${invoice.customer?.phone}</p>
                     </div>
                     <table>
                         <thead>
@@ -565,7 +565,7 @@ export default function Billing() {
                        `📞 *Phone:* ${invoice.customer?.phone}\n` +
                        `💰 *Total Amount:* ₹${invoice.total_amount}\n` +
                        `💳 *Payment Method:* ${invoice.payment_method?.toUpperCase()}\n\n` +
-                       `${branchInfo ? `🏪 *Branch:* ${branchInfo.name}\n📍 *Location:* ${branchInfo.city}\n📞 *Branch Phone:* ${branchInfo.phone || 'N/A'}\n\n` : ''}` +
+                       `${branchInfo ? `🏪 *Branch:* ${branchInfo.name}\n📍 *Location:* ${branchInfo.city}\n📞 *Branch Phone:* +91${branchInfo.phone || 'N/A'}\n\n` : ''}` +
                        `✨ Thank you for choosing Devine Salon! ✨\n` +
                        `We look forward to serving you again!`;
         
@@ -599,7 +599,7 @@ export default function Billing() {
 
     return (
         <DashboardLayout>
-            <div>
+            <div className="px-2">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>
@@ -802,15 +802,23 @@ export default function Billing() {
                                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                                 Phone Number *
                                                             </label>
+                                                            <div className="relative">
+                                                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                            <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                                <span className="text-base">🇮🇳</span>
+                                                                <span>+91</span>
+                                                            </span>
+                                                        </div>
                                                             <input
                                                                 type="tel"
                                                                 name="phone"
                                                                 value={formData.phone}
                                                                 onChange={handleInputChange}
                                                                 required
-                                                                placeholder="e.g., 9876543210"
-                                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                                placeholder="9876543210"
+                                                                className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                                             />
+                                                            </div>
                                                         </div>
                                                         <div>
                                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
@@ -1170,7 +1178,7 @@ export default function Billing() {
                                                 <h3 className="font-semibold text-gray-800">Devine Salon - {branchInfo.name}</h3>
                                             </div>
                                             <p className="text-sm text-gray-600">{branchInfo.address}, {branchInfo.city}</p>
-                                            <p className="text-xs text-gray-500 mt-1">Phone: {branchInfo.phone || 'N/A'} | GST: {branchInfo.gst_number || 'N/A'}</p>
+                                            <p className="text-xs text-gray-500 mt-1">Phone: +91{branchInfo.phone || 'N/A'} | GST: {branchInfo.gst_number || 'N/A'}</p>
                                         </div>
                                     )}
 
@@ -1216,7 +1224,7 @@ export default function Billing() {
                                                         <span className="text-gray-500">Name:</span> {selectedInvoice.customer?.name}
                                                     </p>
                                                     <p className="text-sm text-gray-700">
-                                                        <span className="text-gray-500">Phone:</span> {selectedInvoice.customer?.phone}
+                                                        <span className="text-gray-500">Phone:</span> +91{selectedInvoice.customer?.phone}
                                                     </p>
                                                 </div>
                                                 <div>
@@ -1338,7 +1346,7 @@ export default function Billing() {
                                                         <span className="text-gray-500">Name:</span> {invoice.customer?.name}
                                                     </p>
                                                     <p className="text-xs text-gray-500 mt-0.5">
-                                                        <span className="text-gray-400">Phone:</span> {invoice.customer?.phone}
+                                                        <span className="text-gray-400">Phone:</span> +91{invoice.customer?.phone}
                                                     </p>
                                                 </div>
                                             </td>

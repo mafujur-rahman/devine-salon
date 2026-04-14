@@ -25,7 +25,7 @@ export default function LoginPage() {
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault(); 
+        e.preventDefault();
         setLoading(true);
         setError("");
 
@@ -50,7 +50,7 @@ export default function LoginPage() {
             if (data.token) {
                 localStorage.setItem("token", data.token);
                 localStorage.setItem("role", data.role);
-                
+
                 // Store branch_id if available in response
                 // Try different possible response structures
                 if (data.branch_id) {
@@ -68,10 +68,10 @@ export default function LoginPage() {
                 } else {
                     console.warn("No branch_id found in login response:", data);
                 }
-                
+
                 // Set default authorization header for all future axios requests
                 axios.defaults.headers.common['Authorization'] = `Token ${data.token}`;
-                
+
                 console.log("Token stored and axios default header set");
             }
 
@@ -116,7 +116,7 @@ export default function LoginPage() {
                 <div className="bg-white/5 backdrop-blur-sm border border-[#dba627]/20 rounded-2xl shadow-2xl p-8">
                     {/* Logo */}
                     <div className="flex justify-center mb-8">
-                        <div  className="flex items-center gap-3">
+                        <div className="flex items-center gap-3">
                             <div className="relative">
                                 <div className="absolute inset-0 bg-[#dba627] rounded-xl blur-lg opacity-50"></div>
                                 <div className="relative w-14 h-14 bg-white rounded-xl overflow-hidden shadow-lg">
@@ -156,7 +156,12 @@ export default function LoginPage() {
                         <div>
                             <label className="block text-offwhite/80 text-sm font-medium mb-2">Phone Number</label>
                             <div className="relative">
-                                <MdPhone className="absolute left-3 top-1/2 -translate-y-1/2 text-offwhite/40" size={20} />
+                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <span className="text-offwhite/40 text-sm flex items-center gap-1">
+                                        <span className="text-base">🇮🇳</span>
+                                        <span>+91</span>
+                                    </span>
+                                </div>
                                 <input
                                     type="tel"
                                     name="phone"
@@ -164,7 +169,7 @@ export default function LoginPage() {
                                     onChange={handleChange}
                                     placeholder="9876543210"
                                     required
-                                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-[#dba627]/20 rounded-lg text-white placeholder-offwhite/30 focus:outline-none focus:border-[#dba627] focus:ring-1 focus:ring-[#dba627] transition-all duration-300"
+                                    className="w-full pl-16 pr-4 py-3 bg-white/5 border border-[#dba627]/20 rounded-lg text-white placeholder-offwhite/30 focus:outline-none focus:border-[#dba627] focus:ring-1 focus:ring-[#dba627] transition-all duration-300"
                                 />
                             </div>
                         </div>

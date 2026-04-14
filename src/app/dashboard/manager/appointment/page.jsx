@@ -8,9 +8,10 @@ import axios from "axios";
 
 const API_BASE = "https://saloon.mrshakil.com/api";
 
-// Define the status flow order
-const STATUS_FLOW = ['booked', 'approved', 'in_progress', 'completed'];
-const CANCELLABLE_STATUSES = ['booked', 'approved', 'in_progress'];
+// Define the status flow order (pending is the initial/cancellable status)
+const STATUS_FLOW = ['pending', 'booked', 'in_progress', 'completed'];
+// Only 'pending' status can be cancelled
+const CANCELLABLE_STATUSES = ['pending'];
 
 export default function Appointments() {
     const router = useRouter();
@@ -179,7 +180,7 @@ export default function Appointments() {
         try {
             const response = await axios.get(`${API_BASE}/appointment/${appointmentId}/`);
             let appointmentData = response.data.data || response.data;
-            
+
             // Parse package_details if stored as string
             if (appointmentData.package_details && typeof appointmentData.package_details === 'string') {
                 try {
@@ -188,12 +189,12 @@ export default function Appointments() {
                     appointmentData.package_details = [];
                 }
             }
-            
+
             // Also check for package field
             if (appointmentData.package && !appointmentData.package_name && appointmentData.package_details && appointmentData.package_details.length > 0) {
                 appointmentData.package_name = appointmentData.package_details[0].package_name;
             }
-            
+
             setSelectedAppointment(appointmentData);
             setShowDetailsModal(true);
         } catch (error) {
@@ -258,7 +259,8 @@ export default function Appointments() {
                 time: formData.time,
                 appointment_type: formData.appointment_type,
                 notes: formData.notes,
-                total_amount: totalAmount
+                total_amount: totalAmount,
+                status: 'pending' // Set initial status to pending
             };
 
             // Add package_details if there are packages
@@ -292,7 +294,8 @@ export default function Appointments() {
                 whatsapp: formData.whatsapp,
                 address: formData.address,
                 gender: formData.gender,
-                total_amount: totalAmount
+                total_amount: totalAmount,
+                status: 'pending' // Set initial status to pending
             };
 
             // Add package_details if there are packages
@@ -325,7 +328,7 @@ export default function Appointments() {
                 Swal.fire({
                     icon: 'success',
                     title: 'Success!',
-                    text: 'Appointment created successfully!',
+                    text: 'Appointment created successfully with PENDING status!',
                     confirmButtonColor: '#dba627'
                 });
                 setShowCreateForm(false);
@@ -424,11 +427,22 @@ export default function Appointments() {
         }
     };
 
-    // Handle cancel appointment
+    // Handle cancel appointment - only for 'pending' status
     const handleCancelAppointment = async (appointment) => {
+        // Check if status is 'pending'
+        if (appointment.status !== 'pending') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Cannot Cancel',
+                text: 'Only pending appointments can be cancelled. Once an appointment is booked, it cannot be cancelled.',
+                confirmButtonColor: '#dba627'
+            });
+            return;
+        }
+
         const result = await Swal.fire({
             title: 'Cancel Appointment',
-            text: 'Are you sure you want to cancel this appointment?',
+            text: 'Are you sure you want to cancel this pending appointment?',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Yes, Cancel',
@@ -446,7 +460,7 @@ export default function Appointments() {
                     Swal.fire({
                         icon: 'success',
                         title: 'Cancelled!',
-                        text: 'Appointment has been cancelled.',
+                        text: 'Pending appointment has been cancelled.',
                         confirmButtonColor: '#dba627',
                         timer: 1500,
                         showConfirmButton: false
@@ -668,8 +682,8 @@ export default function Appointments() {
 
     const getStatusColor = (status) => {
         const colors = {
-            'booked': 'bg-yellow-100 text-yellow-800',
-            'approved': 'bg-blue-100 text-blue-800',
+            'pending': 'bg-yellow-100 text-yellow-800',
+            'booked': 'bg-blue-100 text-blue-800',
             'in_progress': 'bg-purple-100 text-purple-800',
             'completed': 'bg-green-100 text-green-800',
             'cancelled': 'bg-red-100 text-red-800'
@@ -773,7 +787,7 @@ export default function Appointments() {
 
     return (
         <DashboardLayout>
-            <div>
+            <div className="px-2">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>
@@ -801,7 +815,10 @@ export default function Appointments() {
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4 overflow-y-auto">
                         <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-                                <h2 className="text-xl font-bold text-gray-800">Create New Appointment</h2>
+                                <div>
+                                    <h2 className="text-xl font-bold text-gray-800">Create New Appointment</h2>
+                                    <p className="text-sm text-gray-500">Status will be set to PENDING</p>
+                                </div>
                                 <button
                                     onClick={() => {
                                         setShowCreateForm(false);
@@ -814,7 +831,7 @@ export default function Appointments() {
                                     </svg>
                                 </button>
                             </div>
-                            
+
                             <form onSubmit={handleCreateAppointment} className="p-6">
                                 {/* Customer Type Selection */}
                                 <div className="mb-6">
@@ -880,6 +897,7 @@ export default function Appointments() {
                                                 onChange={handleInputChange}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
                                                 required
+                                                placeholder="Rahul"
                                             />
                                         </div>
                                         <div>
@@ -890,18 +908,28 @@ export default function Appointments() {
                                                 value={formData.last_name}
                                                 onChange={handleInputChange}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                 placeholder="Sharma"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Phone *</label>
-                                            <input
-                                                type="text"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleInputChange}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                required
-                                            />
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                    <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                        <span className="text-base">🇮🇳</span>
+                                                        <span>+91</span>
+                                                    </span>
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    name="phone"
+                                                    value={formData.phone}
+                                                    onChange={handleInputChange}
+                                                    className="w-full pl-16 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    required
+                                                    placeholder="9876543210"
+                                                />
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
@@ -911,6 +939,7 @@ export default function Appointments() {
                                                 value={formData.email}
                                                 onChange={handleInputChange}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="rahul.sharma@example.com"
                                             />
                                         </div>
                                         <div>
@@ -921,6 +950,7 @@ export default function Appointments() {
                                                 value={formData.whatsapp}
                                                 onChange={handleInputChange}
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="+919876543210"
                                             />
                                         </div>
                                         <div>
@@ -944,6 +974,7 @@ export default function Appointments() {
                                                 onChange={handleInputChange}
                                                 rows="2"
                                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="Enter customer address"
                                             />
                                         </div>
                                     </div>
@@ -1117,14 +1148,6 @@ export default function Appointments() {
                                     />
                                 </div>
 
-                                {/* Total Amount */}
-                                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                                    <div className="flex justify-between items-center">
-                                        <span className="font-semibold text-gray-700">Total Amount:</span>
-                                        <span className="text-2xl font-bold text-[#dba627]">₹{calculateTotalAmount()}</span>
-                                    </div>
-                                </div>
-
                                 {/* Form Actions */}
                                 <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                                     <button
@@ -1143,7 +1166,7 @@ export default function Appointments() {
                                         className={`px-4 py-2 bg-[#dba627] text-white rounded-lg transition-colors cursor-pointer ${(!isFormValid() || loading) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#c49520]'
                                             }`}
                                     >
-                                        {loading ? 'Creating...' : 'Create Appointment'}
+                                        {loading ? 'Creating...' : 'Create Appointment (Pending)'}
                                     </button>
                                 </div>
                             </form>
@@ -1158,7 +1181,7 @@ export default function Appointments() {
                             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
                                 <div>
                                     <h2 className="text-xl font-bold text-gray-800">Appointment Details</h2>
-                                    <p className="text-sm text-gray-500">ID: {selectedAppointment.id}</p>
+
                                 </div>
                                 <button
                                     onClick={() => {
@@ -1172,7 +1195,7 @@ export default function Appointments() {
                                     </svg>
                                 </button>
                             </div>
-                            
+
                             <div className="p-6">
                                 {/* Customer Information */}
                                 <div className="mb-6">
@@ -1182,10 +1205,10 @@ export default function Appointments() {
                                             <p className="text-sm text-gray-500">Customer Name</p>
                                             <p className="font-medium text-gray-800">{selectedAppointment.customer_name || 'N/A'}</p>
                                         </div>
-                                        <div>
+                                        {/* <div>
                                             <p className="text-sm text-gray-500">Phone</p>
                                             <p className="font-medium text-gray-800">{selectedAppointment.phone || 'N/A'}</p>
-                                        </div>
+                                        </div> */}
                                         {selectedAppointment.email && (
                                             <div>
                                                 <p className="text-sm text-gray-500">Email</p>
@@ -1549,8 +1572,8 @@ export default function Appointments() {
                                     onClick={() => paginate(currentPage - 1)}
                                     disabled={currentPage === 1}
                                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage === 1
-                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
                                         }`}
                                 >
                                     Previous
@@ -1561,8 +1584,8 @@ export default function Appointments() {
                                             key={number}
                                             onClick={() => paginate(number)}
                                             className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${currentPage === number
-                                                    ? 'bg-[#dba627] text-white'
-                                                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                                ? 'bg-[#dba627] text-white'
+                                                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
                                                 }`}
                                         >
                                             {number}
@@ -1573,8 +1596,8 @@ export default function Appointments() {
                                     onClick={() => paginate(currentPage + 1)}
                                     disabled={currentPage === totalPages}
                                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentPage === totalPages
-                                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
+                                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer'
                                         }`}
                                 >
                                     Next

@@ -38,13 +38,13 @@ export default function Customers() {
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [customerStats, setCustomerStats] = useState(null);
     const [loadingStats, setLoadingStats] = useState(false);
-    
+
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCustomers, setTotalCustomers] = useState(0);
     const [itemsPerPage] = useState(10);
-    
+
     const [formData, setFormData] = useState({
         phone: '',
         first_name: '',
@@ -77,13 +77,13 @@ export default function Customers() {
         setLoading(true);
         try {
             const data = await apiFetch(`/users/customers/?page=${currentPage}&page_size=${itemsPerPage}`);
-            
+
             // Handle different API response structures
             let customersData = data.data || data.customers || data.results || [];
             let paginationInfo = data.pagination || data;
-            
+
             setCustomers(customersData);
-            
+
             // Set pagination info based on response structure
             if (paginationInfo.total_pages) {
                 setTotalPages(paginationInfo.total_pages);
@@ -112,14 +112,14 @@ export default function Customers() {
     const fetchCustomerDetails = async (customerId) => {
         setLoadingStats(true);
         setShowDetailsModal(true);
-        
+
         try {
             // Fetch both customer details and stats in parallel
             const [detailsData, statsData] = await Promise.all([
                 apiFetch(`/users/${customerId}/`),
                 apiFetch(`/user/customers/${customerId}/stats/`)
             ]);
-            
+
             setSelectedCustomer(detailsData.data);
             setCustomerStats(statsData.data);
         } catch (error) {
@@ -220,7 +220,7 @@ export default function Customers() {
     const getPageNumbers = () => {
         const pageNumbers = [];
         const maxPagesToShow = 5;
-        
+
         if (totalPages <= maxPagesToShow) {
             for (let i = 1; i <= totalPages; i++) {
                 pageNumbers.push(i);
@@ -228,18 +228,18 @@ export default function Customers() {
         } else {
             const startPage = Math.max(1, currentPage - 2);
             const endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-            
+
             for (let i = startPage; i <= endPage; i++) {
                 pageNumbers.push(i);
             }
         }
-        
+
         return pageNumbers;
     };
 
     return (
         <DashboardLayout>
-            <div className="px-4">
+            <div className="px-2">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>
@@ -297,116 +297,124 @@ export default function Customers() {
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Phone *
                                             </label>
-                                            <input
-                                                type="tel"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="+91 98765 43210"
-                                            />
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                    <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                        <span className="text-base">🇮🇳</span>
+                                                        <span>+91</span>
+                                                    </span>
+                                                </div>
+                                                <input
+                                                    type="tel"
+                                                    name="phone"
+                                                    value={formData.phone}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="98765 43210"
+                                                />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    First Name *
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="first_name"
+                                                    value={formData.first_name}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="Rahul"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Last Name
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="last_name"
+                                                    value={formData.last_name}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="Sharma"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Email
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    value={formData.email}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="rahul.sharma@example.com"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    WhatsApp
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    name="whatsapp"
+                                                    value={formData.whatsapp}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="+91 98765 43210"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Gender
+                                                </label>
+                                                <select
+                                                    name="gender"
+                                                    value={formData.gender}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                >
+                                                    <option value="male">Male</option>
+                                                    <option value="female">Female</option>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Address
+                                                </label>
+                                                <textarea
+                                                    name="address"
+                                                    value={formData.address}
+                                                    onChange={handleInputChange}
+                                                    rows="2"
+                                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="Flat 12, MG Road, Mumbai, Maharashtra"
+                                                />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                First Name *
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="first_name"
-                                                value={formData.first_name}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Rahul"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Last Name
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="last_name"
-                                                value={formData.last_name}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Sharma"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Email
-                                            </label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={formData.email}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="rahul.sharma@example.com"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                WhatsApp
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                name="whatsapp"
-                                                value={formData.whatsapp}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="+91 98765 43210"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Gender
-                                            </label>
-                                            <select
-                                                name="gender"
-                                                value={formData.gender}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="male">Male</option>
-                                                <option value="female">Female</option>
-                                                <option value="other">Other</option>
-                                            </select>
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Address
-                                            </label>
-                                            <textarea
-                                                name="address"
-                                                value={formData.address}
-                                                onChange={handleInputChange}
-                                                rows="2"
-                                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Flat 12, MG Road, Mumbai, Maharashtra"
-                                            />
-                                        </div>
-                                    </div>
 
-                                    {/* FOOTER */}
-                                    <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowCreateForm(false)}
-                                            className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={loading}
-                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
-                                        >
-                                            {loading ? 'Creating...' : 'Create Customer'}
-                                        </button>
-                                    </div>
+                                        {/* FOOTER */}
+                                        <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCreateForm(false)}
+                                                className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={loading}
+                                                className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                                            >
+                                                {loading ? 'Creating...' : 'Create Customer'}
+                                            </button>
+                                        </div>
                                 </form>
                             </div>
                         </div>
@@ -456,7 +464,7 @@ export default function Customers() {
                                                 Basic Information
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-gray-50 p-5 rounded-xl">
-                                               
+
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                                         Role
@@ -681,7 +689,7 @@ export default function Customers() {
                                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                                     </svg>
-                                                    <span className="text-sm text-gray-700">{customer.phone}</span>
+                                                    <span className="text-sm text-gray-700">+91{customer.phone}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
@@ -769,44 +777,41 @@ export default function Customers() {
                                         {totalCustomers} customers
                                     </span>
                                 </div>
-                                
+
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={goToPreviousPage}
                                         disabled={currentPage === 1}
-                                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                                            currentPage === 1
+                                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${currentPage === 1
                                                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                                 : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer"
-                                        }`}
+                                            }`}
                                     >
                                         Previous
                                     </button>
-                                    
+
                                     <div className="flex items-center gap-1">
                                         {getPageNumbers().map((pageNum) => (
                                             <button
                                                 key={pageNum}
                                                 onClick={() => goToPage(pageNum)}
-                                                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                                                    currentPage === pageNum
+                                                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${currentPage === pageNum
                                                         ? "bg-[#dba627] text-white cursor-pointer"
                                                         : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer"
-                                                }`}
+                                                    }`}
                                             >
                                                 {pageNum}
                                             </button>
                                         ))}
                                     </div>
-                                    
+
                                     <button
                                         onClick={goToNextPage}
                                         disabled={currentPage === totalPages}
-                                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-                                            currentPage === totalPages
+                                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${currentPage === totalPages
                                                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                                 : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer"
-                                        }`}
+                                            }`}
                                     >
                                         Next
                                     </button>

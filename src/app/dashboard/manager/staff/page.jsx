@@ -331,7 +331,7 @@ export default function StaffManagement() {
 
     return (
         <DashboardLayout>
-            <div>
+            <div className="px-2">
                 {/* Header with Add Button on Same Line */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>
@@ -358,11 +358,10 @@ export default function StaffManagement() {
                 <div className="flex gap-2 mb-6 border-b border-gray-200">
                     <button
                         onClick={() => setActiveTab("all")}
-                        className={`px-6 py-3 text-sm font-semibold transition-all relative ${
-                            activeTab === "all"
-                                ? "text-[#dba627]"
-                                : "text-gray-500 hover:text-gray-700"
-                        }`}
+                        className={`px-6 py-3 text-sm font-semibold transition-all relative ${activeTab === "all"
+                            ? "text-[#dba627]"
+                            : "text-gray-500 hover:text-gray-700"
+                            }`}
                     >
                         All Staff
                         {activeTab === "all" && (
@@ -371,11 +370,10 @@ export default function StaffManagement() {
                     </button>
                     <button
                         onClick={() => setActiveTab("bookable")}
-                        className={`px-6 py-3 text-sm font-semibold transition-all relative ${
-                            activeTab === "bookable"
-                                ? "text-[#dba627]"
-                                : "text-gray-500 hover:text-gray-700"
-                        }`}
+                        className={`px-6 py-3 text-sm font-semibold transition-all relative ${activeTab === "bookable"
+                            ? "text-[#dba627]"
+                            : "text-gray-500 hover:text-gray-700"
+                            }`}
                     >
                         Bookable Staff
                         {bookableStaff.length > 0 && (
@@ -448,111 +446,119 @@ export default function StaffManagement() {
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Phone Number *
                                             </label>
-                                            <input
-                                                type="tel"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="+91 98765 43210"
-                                            />
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                    <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                        <span className="text-base">🇮🇳</span>
+                                                        <span>+91</span>
+                                                    </span>
+                                                </div>
+                                                <input
+                                                    type="tel"
+                                                    name="phone"
+                                                    value={formData.phone}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="98765 43210"
+                                                />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Email
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    value={formData.email}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="rajesh@example.com"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Address
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="address"
+                                                    value={formData.address}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="e.g., Andheri East, Mumbai"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Job Title *
+                                                </label>
+                                                <select
+                                                    name="job_title"
+                                                    value={formData.job_title}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                >
+                                                    <option value="">Select Job Title</option>
+                                                    {jobTitles.map(title => (
+                                                        <option key={title.id} value={title.id}>
+                                                            {title.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Commission Percentage
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    name="commission_percentage"
+                                                    value={formData.commission_percentage}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="e.g., 15"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Base Salary (₹)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    name="base_salary"
+                                                    value={formData.base_salary}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="e.g., 25000"
+                                                />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Email
-                                            </label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={formData.email}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="rajesh@example.com"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Address
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="address"
-                                                value={formData.address}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="e.g., Andheri East, Mumbai"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Job Title *
-                                            </label>
-                                            <select
-                                                name="job_title"
-                                                value={formData.job_title}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="">Select Job Title</option>
-                                                {jobTitles.map(title => (
-                                                    <option key={title.id} value={title.id}>
-                                                        {title.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Commission Percentage
-                                            </label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                name="commission_percentage"
-                                                value={formData.commission_percentage}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="e.g., 15"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Base Salary (₹)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                name="base_salary"
-                                                value={formData.base_salary}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="e.g., 25000"
-                                            />
-                                        </div>
-                                    </div>
 
-                                    {/* FOOTER */}
-                                    <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setShowCreateForm(false);
-                                                resetForm();
-                                            }}
-                                            className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={loading}
-                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
-                                        >
-                                            {loading ? 'Creating...' : 'Add Staff Member'}
-                                        </button>
-                                    </div>
+                                        {/* FOOTER */}
+                                        <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowCreateForm(false);
+                                                    resetForm();
+                                                }}
+                                                className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={loading}
+                                                className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                                            >
+                                                {loading ? 'Creating...' : 'Add Staff Member'}
+                                            </button>
+                                        </div>
                                 </form>
                             </div>
                         </div>
@@ -604,15 +610,23 @@ export default function StaffManagement() {
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Phone Number *
                                             </label>
-                                            <input
-                                                type="tel"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="+91 98765 43210"
-                                            />
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                    <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                        <span className="text-base">🇮🇳</span>
+                                                        <span>+91</span>
+                                                    </span>
+                                                </div>
+                                                <input
+                                                    type="tel"
+                                                    name="phone"
+                                                    value={formData.phone}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="98765 43210"
+                                                />
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
@@ -830,7 +844,7 @@ export default function StaffManagement() {
                 ) : displayedStaff.length === 0 ? (
                     <div className="text-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
                         <p className="text-gray-500">
-                            {activeTab === "all" 
+                            {activeTab === "all"
                                 ? "No staff members found. Click Add Staff Member to add one."
                                 : "No bookable staff members available."}
                         </p>
@@ -866,12 +880,12 @@ export default function StaffManagement() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="text-sm text-gray-700">{staffMember.phone}</span>
+                                            <span className="text-sm text-gray-700">+91{staffMember.phone}</span>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className="text-sm text-gray-700">
-                                                {activeTab === "bookable" 
-                                                    ? staffMember.job_title_name 
+                                                {activeTab === "bookable"
+                                                    ? staffMember.job_title_name
                                                     : getJobTitleName(staffMember.job_title)}
                                             </span>
                                         </td>
