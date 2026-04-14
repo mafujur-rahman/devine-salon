@@ -38,11 +38,11 @@ export default function AdminCustomers() {
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [customerStats, setCustomerStats] = useState(null);
     const [loadingStats, setLoadingStats] = useState(false);
-    
+
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
-    
+
     const [formData, setFormData] = useState({
         phone: '',
         first_name: '',
@@ -94,14 +94,14 @@ export default function AdminCustomers() {
     const fetchCustomerDetails = async (customerId) => {
         setLoadingStats(true);
         setShowDetailsModal(true);
-        
+
         try {
             // Fetch both customer details and stats in parallel
             const [detailsData, statsData] = await Promise.all([
                 apiFetch(`/users/${customerId}/`),
                 apiFetch(`/user/customers/${customerId}/stats/`)
             ]);
-            
+
             setSelectedCustomer(detailsData.data);
             setCustomerStats(statsData.data);
         } catch (error) {
@@ -213,10 +213,10 @@ export default function AdminCustomers() {
 
         const pageNumbers = [];
         const maxVisiblePages = 5;
-        
+
         let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
         let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-        
+
         if (endPage - startPage + 1 < maxVisiblePages) {
             startPage = Math.max(1, endPage - maxVisiblePages + 1);
         }
@@ -236,11 +236,10 @@ export default function AdminCustomers() {
                     <button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={currentPage === 1}
-                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                            currentPage === 1
+                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${currentPage === 1
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer'
-                        }`}
+                            }`}
                     >
                         Previous
                     </button>
@@ -248,11 +247,10 @@ export default function AdminCustomers() {
                         <button
                             key={page}
                             onClick={() => handlePageChange(page)}
-                            className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                                currentPage === page
+                            className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors cursor-pointer ${currentPage === page
                                     ? 'bg-[#dba627] text-white'
                                     : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300'
-                            }`}
+                                }`}
                         >
                             {page}
                         </button>
@@ -260,11 +258,10 @@ export default function AdminCustomers() {
                     <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
-                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                            currentPage === totalPages
+                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${currentPage === totalPages
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 cursor-pointer'
-                        }`}
+                            }`}
                     >
                         Next
                     </button>
@@ -332,116 +329,124 @@ export default function AdminCustomers() {
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Phone *
                                             </label>
-                                            <input
-                                                type="tel"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="+91 98765 43210"
-                                            />
+                                            <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                    <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                        <span className="text-base">🇮🇳</span>
+                                                        <span>+91</span>
+                                                    </span>
+                                                </div>
+                                                <input
+                                                    type="tel"
+                                                    name="phone"
+                                                    value={formData.phone}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="98765 43210"
+                                                />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    First Name *
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="first_name"
+                                                    value={formData.first_name}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="Rahul"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Last Name
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    name="last_name"
+                                                    value={formData.last_name}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="Sharma"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Email
+                                                </label>
+                                                <input
+                                                    type="email"
+                                                    name="email"
+                                                    value={formData.email}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="rahul.sharma@example.com"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    WhatsApp
+                                                </label>
+                                                <input
+                                                    type="tel"
+                                                    name="whatsapp"
+                                                    value={formData.whatsapp}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="+91 98765 43210"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Gender
+                                                </label>
+                                                <select
+                                                    name="gender"
+                                                    value={formData.gender}
+                                                    onChange={handleInputChange}
+                                                    className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                >
+                                                    <option value="male">Male</option>
+                                                    <option value="female">Female</option>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                    Address
+                                                </label>
+                                                <textarea
+                                                    name="address"
+                                                    value={formData.address}
+                                                    onChange={handleInputChange}
+                                                    rows="2"
+                                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                    placeholder="Flat 12, MG Road, Mumbai, Maharashtra"
+                                                />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                First Name *
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="first_name"
-                                                value={formData.first_name}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Rahul"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Last Name
-                                            </label>
-                                            <input
-                                                type="text"
-                                                name="last_name"
-                                                value={formData.last_name}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Sharma"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Email
-                                            </label>
-                                            <input
-                                                type="email"
-                                                name="email"
-                                                value={formData.email}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="rahul.sharma@example.com"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                WhatsApp
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                name="whatsapp"
-                                                value={formData.whatsapp}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="+91 98765 43210"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Gender
-                                            </label>
-                                            <select
-                                                name="gender"
-                                                value={formData.gender}
-                                                onChange={handleInputChange}
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                            >
-                                                <option value="male">Male</option>
-                                                <option value="female">Female</option>
-                                                <option value="other">Other</option>
-                                            </select>
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                                Address
-                                            </label>
-                                            <textarea
-                                                name="address"
-                                                value={formData.address}
-                                                onChange={handleInputChange}
-                                                rows="2"
-                                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="Flat 12, MG Road, Mumbai, Maharashtra"
-                                            />
-                                        </div>
-                                    </div>
 
-                                    {/* FOOTER */}
-                                    <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowCreateForm(false)}
-                                            className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={loading}
-                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
-                                        >
-                                            {loading ? 'Creating...' : 'Create Customer'}
-                                        </button>
-                                    </div>
+                                        {/* FOOTER */}
+                                        <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowCreateForm(false)}
+                                                className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={loading}
+                                                className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                                            >
+                                                {loading ? 'Creating...' : 'Create Customer'}
+                                            </button>
+                                        </div>
                                 </form>
                             </div>
                         </div>
@@ -491,7 +496,7 @@ export default function AdminCustomers() {
                                                 Basic Information
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-gray-50 p-5 rounded-xl">
-                                                
+
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
                                                         Role
@@ -549,11 +554,11 @@ export default function AdminCustomers() {
                                                         </div>
                                                         <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl">
                                                             <p className="text-xs text-purple-600 font-semibold mb-1">Total Paid</p>
-                                                            <p className="text-2xl font-bold text-purple-900">৳{customerStats.total_paid || '0'}</p>
+                                                            <p className="text-2xl font-bold text-purple-900">₹{customerStats.total_paid || '0'}</p>
                                                         </div>
                                                         <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-xl">
                                                             <p className="text-xs text-orange-600 font-semibold mb-1">Total Discount</p>
-                                                            <p className="text-2xl font-bold text-orange-900">৳{customerStats.total_discount || '0'}</p>
+                                                            <p className="text-2xl font-bold text-orange-900">₹{customerStats.total_discount || '0'}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -716,9 +721,9 @@ export default function AdminCustomers() {
                                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                                     </svg>
-                                                    <span className="text-sm text-gray-700">{customer.phone}</span>
+                                                    <span className="text-sm text-gray-700">+91{customer.phone}</span>
                                                 </div>
-                                             </td>
+                                            </td>
                                             <td className="px-6 py-4">
                                                 {customer.email ? (
                                                     <div className="flex items-center gap-2">
@@ -730,7 +735,7 @@ export default function AdminCustomers() {
                                                 ) : (
                                                     <span className="text-sm text-gray-400">Not provided</span>
                                                 )}
-                                             </td>
+                                            </td>
                                             <td className="px-6 py-4">
                                                 {customer.address ? (
                                                     <div className="flex items-center gap-2">
@@ -743,17 +748,17 @@ export default function AdminCustomers() {
                                                 ) : (
                                                     <span className="text-sm text-gray-400">Not provided</span>
                                                 )}
-                                             </td>
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                                     {customer.appointment_count || 0} visits
                                                 </span>
-                                             </td>
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <span className="text-sm font-semibold text-[#dba627]">
-                                                    ৳{customer.total_spendings || '0.00'}
+                                                    ₹{customer.total_spendings || '0.00'}
                                                 </span>
-                                             </td>
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-wrap gap-1">
                                                     {customer.branch_names && customer.branch_names.length > 0 ? (
@@ -773,7 +778,7 @@ export default function AdminCustomers() {
                                                         <span className="text-xs text-gray-400">None</span>
                                                     )}
                                                 </div>
-                                             </td>
+                                            </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <button
@@ -787,7 +792,7 @@ export default function AdminCustomers() {
                                                         </svg>
                                                     </button>
                                                 </div>
-                                             </td>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>

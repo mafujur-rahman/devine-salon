@@ -229,7 +229,7 @@ export default function AdminPayments() {
                             ${invoice.branch ? `
                                 <p>${invoice.branch.name}</p>
                                 <p>${invoice.branch.address}, ${invoice.branch.city}</p>
-                                <p>Phone: ${invoice.branch.phone || 'N/A'}</p>
+                                <p>Phone: +91${invoice.branch.phone || 'N/A'}</p>
                             ` : '<p>Your Salon Address Here</p>'}
                         </div>
                     </div>
@@ -242,7 +242,7 @@ export default function AdminPayments() {
                         <p><strong>Payment Method:</strong> ${invoice.payment_method?.toUpperCase()}</p>
                         <p><strong>Served By:</strong> ${invoice.served_by?.name}</p>
                         <p><strong>Customer Name:</strong> ${invoice.customer?.name}</p>
-                        <p><strong>Customer Phone:</strong> ${invoice.customer?.phone}</p>
+                        <p><strong>Customer Phone:</strong> +91${invoice.customer?.phone}</p>
                     </div>
                     <table>
                         <thead>
@@ -305,7 +305,7 @@ export default function AdminPayments() {
                        `🧾 *Invoice ID:* #${invoice.id}\n` +
                        `📅 *Date:* ${formatDate(invoice.created_at)}\n` +
                        `👤 *Customer:* ${invoice.customer?.name}\n` +
-                       `📞 *Phone:* ${invoice.customer?.phone}\n` +
+                       `📞 *Phone:* +91${invoice.customer?.phone}\n` +
                        `💰 *Total Amount:* ₹${invoice.total_amount}\n` +
                        `💳 *Payment Method:* ${invoice.payment_method?.toUpperCase()}\n\n` +
                        `${invoice.branch ? `🏪 *Branch:* ${invoice.branch.name}\n📍 *Location:* ${invoice.branch.city}\n📞 *Branch Phone:* ${invoice.branch.phone || 'N/A'}\n\n` : ''}` +
@@ -700,15 +700,13 @@ export default function AdminPayments() {
                                                 <td className="px-6 py-4">
                                                     <div>
                                                         <p className="text-sm font-semibold text-gray-900">
-                                                            <span className="text-gray-500">Name:</span> {invoice.customer?.name || 'N/A'}
+                                                            <span className="text-gray-500"></span> {invoice.customer?.name || 'N/A'}
                                                         </p>
-                                                        <p className="text-xs text-gray-500 mt-0.5">
-                                                            <span className="text-gray-400">Phone:</span> {invoice.customer?.phone || 'N/A'}
-                                                        </p>
+                                                        
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="text-sm text-gray-700">{invoice.customer?.phone || 'N/A'}</span>
+                                                    <span className="text-sm text-gray-700">+91{invoice.customer?.phone || 'N/A'}</span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex flex-wrap gap-1">

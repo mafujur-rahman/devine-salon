@@ -8,9 +8,10 @@ import axios from "axios";
 
 const API_BASE = "https://saloon.mrshakil.com/api";
 
-// Define the status flow order (same as manager version)
-const STATUS_FLOW = ['booked', 'approved', 'in_progress', 'completed'];
-const CANCELLABLE_STATUSES = ['booked', 'approved', 'in_progress'];
+// Define the status flow order (pending is the initial/cancellable status)
+const STATUS_FLOW = ['pending', 'booked', 'in_progress', 'completed'];
+// Only 'pending' status can be cancelled
+const CANCELLABLE_STATUSES = ['pending'];
 
 export default function AdminAppointments() {
     const router = useRouter();
@@ -320,11 +321,22 @@ export default function AdminAppointments() {
         }
     };
 
-    // Handle cancel appointment
+    // Handle cancel appointment - only for 'pending' status
     const handleCancelAppointment = async (appointment) => {
+        // Check if status is 'pending'
+        if (appointment.status !== 'pending') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Cannot Cancel',
+                text: 'Only pending appointments can be cancelled. Once an appointment is booked, it cannot be cancelled.',
+                confirmButtonColor: '#dba627'
+            });
+            return;
+        }
+
         const result = await Swal.fire({
             title: 'Cancel Appointment',
-            text: 'Are you sure you want to cancel this appointment?',
+            text: 'Are you sure you want to cancel this pending appointment?',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Yes, Cancel',
@@ -342,7 +354,7 @@ export default function AdminAppointments() {
                     Swal.fire({
                         icon: 'success',
                         title: 'Cancelled!',
-                        text: 'Appointment has been cancelled.',
+                        text: 'Pending appointment has been cancelled.',
                         confirmButtonColor: '#dba627',
                         timer: 1500,
                         showConfirmButton: false
@@ -446,7 +458,8 @@ export default function AdminAppointments() {
                 time: formData.time,
                 appointment_type: formData.appointment_type,
                 notes: formData.notes,
-                total_amount: totalAmount
+                total_amount: totalAmount,
+                status: 'pending' // Set initial status to pending
             };
             
             // Add package_details if there are packages
@@ -466,6 +479,15 @@ export default function AdminAppointments() {
                 }));
             }
         } else {
+            // Extract only the phone number without country code for API
+            let cleanPhoneNumber = formData.phone;
+            // Remove +91 prefix if present
+            if (cleanPhoneNumber.startsWith('+91')) {
+                cleanPhoneNumber = cleanPhoneNumber.substring(3);
+            }
+            // Remove any spaces or special characters
+            cleanPhoneNumber = cleanPhoneNumber.replace(/[\s-]/g, '');
+            
             // Start with base payload for new customer
             payload = {
                 branch: parseInt(formData.branch),
@@ -474,14 +496,15 @@ export default function AdminAppointments() {
                 time: formData.time,
                 appointment_type: formData.appointment_type,
                 notes: formData.notes,
-                phone: formData.phone,
+                phone: cleanPhoneNumber, // Send only the number without country code
                 first_name: formData.first_name,
                 last_name: formData.last_name,
                 email: formData.email,
                 whatsapp: formData.whatsapp,
                 address: formData.address,
                 gender: formData.gender,
-                total_amount: totalAmount
+                total_amount: totalAmount,
+                status: 'pending' // Set initial status to pending
             };
             
             // Add package_details if there are packages
@@ -511,7 +534,7 @@ export default function AdminAppointments() {
                 Swal.fire({
                     icon: 'success',
                     title: 'Success!',
-                    text: 'Appointment created successfully!',
+                    text: 'Appointment created successfully with PENDING status!',
                     confirmButtonColor: '#dba627',
                     timer: 1500,
                     showConfirmButton: false
@@ -751,12 +774,20 @@ export default function AdminAppointments() {
         });
     };
 
+    // Handle phone input - just store the value as is, no auto-formatting
+    const handlePhoneChange = (e) => {
+        setFormData({
+            ...formData,
+            phone: e.target.value
+        });
+    };
+
     const getStatusColor = (status) => {
         const colors = {
-            'booked': 'bg-yellow-100 text-yellow-800',
-            'approved': 'bg-blue-100 text-blue-800',
+            'pending': 'bg-yellow-100 text-yellow-800',
+            'booked': 'bg-blue-100 text-blue-800',
             'in_progress': 'bg-purple-100 text-purple-800',
-            'completed': 'bg-green-100 text-green-800',
+            'completed': 'bg-emerald-100 text-emerald-800',
             'cancelled': 'bg-red-100 text-red-800'
         };
         return colors[status] || 'bg-gray-100 text-gray-800';
@@ -832,14 +863,16 @@ export default function AdminAppointments() {
         if (customerType === 'existing') {
             return formData.customer && formData.staff && formData.date && formData.time && hasServiceOrPackage;
         } else {
-            return formData.phone && formData.first_name && formData.staff && formData.date && formData.time && hasServiceOrPackage;
+            // Validate phone has at least 10 digits
+            const phoneDigits = formData.phone.replace(/[^0-9]/g, '');
+            return phoneDigits.length >= 10 && formData.first_name && formData.staff && formData.date && formData.time && hasServiceOrPackage;
         }
     };
 
     // Statistics for admin dashboard
     const totalAppointments = filteredAppointments.length;
     const completedCount = filteredAppointments.filter(apt => apt.status === 'completed').length;
-    const pendingCount = filteredAppointments.filter(apt => apt.status === 'booked' || apt.status === 'approved').length;
+    const pendingCount = filteredAppointments.filter(apt => apt.status === 'pending' || apt.status === 'booked').length;
     const cancelledCount = filteredAppointments.filter(apt => apt.status === 'cancelled').length;
     const totalRevenue = filteredAppointments.reduce((sum, apt) => sum + parseFloat(apt.total_amount || 0), 0);
 
@@ -894,7 +927,7 @@ export default function AdminAppointments() {
                                         Create New Appointment
                                     </h2>
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Fill in the details to create a new appointment
+                                        Fill in the details to create a new appointment (Status will be PENDING)
                                     </p>
                                 </div>
                                 <button
@@ -999,15 +1032,23 @@ export default function AdminAppointments() {
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                         Phone Number *
                                                     </label>
-                                                    <input
-                                                        type="tel"
-                                                        name="phone"
-                                                        value={formData.phone}
-                                                        onChange={handleInputChange}
-                                                        required
-                                                        className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                        placeholder="9876543210"
-                                                    />
+                                                    <div className="relative">
+                                                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                            <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                                <span className="text-base">🇮🇳</span>
+                                                                <span>+91</span>
+                                                            </span>
+                                                        </div>
+                                                        <input
+                                                            type="tel"
+                                                            name="phone"
+                                                            value={formData.phone}
+                                                            onChange={handlePhoneChange}
+                                                            required
+                                                            className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                            placeholder="9876543210"
+                                                        />
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
@@ -1307,22 +1348,6 @@ export default function AdminAppointments() {
                                                     )}
                                                 </div>
 
-                                                {/* Total Amount Summary */}
-                                                {(selectedServices.length > 0 || selectedPackages.length > 0) && (
-                                                    <div className="md:col-span-2 mt-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200">
-                                                        <div className="flex justify-between items-center">
-                                                            <span className="text-sm font-semibold text-gray-700">Total Amount:</span>
-                                                            <span className="text-2xl font-bold text-[#dba627]">
-                                                                ₹{calculateTotalAmount()}
-                                                            </span>
-                                                        </div>
-                                                        <p className="text-xs text-gray-500 mt-2 text-right">
-                                                            {selectedPackages.length > 0 && "✓ Package prices are fixed and include all services"}
-                                                            {selectedServices.length > 0 && selectedPackages.length > 0 && " • "}
-                                                            {selectedServices.length > 0 && "✓ Individual services priced separately"}
-                                                        </p>
-                                                    </div>
-                                                )}
                                             </>
                                         )}
                                     </div>
@@ -1348,7 +1373,7 @@ export default function AdminAppointments() {
                                                     : 'bg-black hover:bg-gray-800 cursor-pointer'
                                             }`}
                                         >
-                                            {loading ? 'Creating...' : 'Create Appointment'}
+                                            {loading ? 'Creating...' : 'Create Appointment (Pending)'}
                                         </button>
                                     </div>
                                 </form>
@@ -1412,8 +1437,8 @@ export default function AdminAppointments() {
                             className="h-10 px-3 rounded-lg border border-gray-300 text-sm outline-none focus:ring-2 focus:ring-[#dba627]"
                         >
                             <option value="">All Statuses</option>
+                            <option value="pending">Pending</option>
                             <option value="booked">Booked</option>
-                            <option value="approved">Approved</option>
                             <option value="in_progress">In Progress</option>
                             <option value="completed">Completed</option>
                             <option value="cancelled">Cancelled</option>
@@ -1481,13 +1506,15 @@ export default function AdminAppointments() {
                                                     >
                                                         Next →
                                                     </button>
-                                                    <button
-                                                        onClick={() => handleCancelAppointment(selectedAppointment)}
-                                                        className="text-red-600 hover:text-red-700 text-xs font-medium px-2 py-1 rounded border border-red-600 hover:bg-red-600 hover:text-white transition-colors"
-                                                        title="Cancel"
-                                                    >
-                                                        Cancel
-                                                    </button>
+                                                    {selectedAppointment.status === 'pending' && (
+                                                        <button
+                                                            onClick={() => handleCancelAppointment(selectedAppointment)}
+                                                            className="text-red-600 hover:text-red-700 text-xs font-medium px-2 py-1 rounded border border-red-600 hover:bg-red-600 hover:text-white transition-colors"
+                                                            title="Cancel"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -1645,8 +1672,8 @@ export default function AdminAppointments() {
                                             required
                                             className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
                                         >
+                                            <option value="pending">Pending</option>
                                             <option value="booked">Booked</option>
-                                            <option value="approved">Approved</option>
                                             <option value="in_progress">In Progress</option>
                                             <option value="completed">Completed</option>
                                             <option value="cancelled">Cancelled</option>

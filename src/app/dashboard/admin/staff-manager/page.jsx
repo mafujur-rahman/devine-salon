@@ -849,7 +849,7 @@ const StaffManagement = () => {
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <span className="text-sm font-medium text-gray-900">
-                                                                {staff.base_salary ? `৳${staff.base_salary}` : 'N/A'}
+                                                                {staff.base_salary ? `₹${staff.base_salary}` : 'N/A'}
                                                             </span>
                                                         </td>
                                                         <td className="px-6 py-4 text-right">

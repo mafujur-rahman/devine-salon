@@ -172,9 +172,6 @@ const DisplayBranches = ({ refreshTrigger }) => {
                                 <h3 className="text-lg font-semibold text-gray-900 leading-tight">
                                     {branch.name}
                                 </h3>
-                                <p className="text-[11px] text-gray-400 font-mono mt-1">
-                                    ID #{branch.id}
-                                </p>
                             </div>
 
                             {/* TOGGLE */}
@@ -225,7 +222,7 @@ const DisplayBranches = ({ refreshTrigger }) => {
                                     <HiOutlinePhone size={18} />
                                 </div>
                                 <span className="text-sm text-gray-700 font-medium">
-                                    {branch.phone || 'No Contact'}
+                                    +91{branch.phone || 'No Contact'}
                                 </span>
                             </div>
 

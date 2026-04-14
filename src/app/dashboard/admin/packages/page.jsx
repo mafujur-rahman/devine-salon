@@ -18,6 +18,20 @@ export default function AdminPackages() {
     const [branches, setBranches] = useState([]);
     const [allServices, setAllServices] = useState([]);
     
+    // Create/Edit Package Form State
+    const [showPackageForm, setShowPackageForm] = useState(false);
+    const [editingPackage, setEditingPackage] = useState(null);
+    const [packageFormData, setPackageFormData] = useState({
+        name: '',
+        description: '',
+        package_price: '',
+        validity_days: '',
+        branch: ''
+    });
+    const [selectedServicesList, setSelectedServicesList] = useState([]);
+    const [serviceInput, setServiceInput] = useState({ service: '' });
+    const [branchServices, setBranchServices] = useState([]);
+    
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);
@@ -44,8 +58,17 @@ export default function AdminPackages() {
     // Apply filters whenever filter criteria or packages change
     useEffect(() => {
         applyFilters();
-        setCurrentPage(1); // Reset to first page when filters change
+        setCurrentPage(1);
     }, [selectedBranchFilter, searchTerm, packages]);
+
+    // Fetch services when branch is selected in create/edit form
+    useEffect(() => {
+        if (packageFormData.branch) {
+            fetchServicesByBranch(packageFormData.branch);
+        } else {
+            setBranchServices([]);
+        }
+    }, [packageFormData.branch]);
 
     const checkAuth = () => {
         const token = localStorage.getItem("token");
@@ -59,12 +82,10 @@ export default function AdminPackages() {
     const applyFilters = () => {
         let filtered = [...packages];
         
-        // Filter by branch
         if (selectedBranchFilter) {
             filtered = filtered.filter(pkg => pkg.branch === parseInt(selectedBranchFilter));
         }
         
-        // Search by name
         if (searchTerm) {
             filtered = filtered.filter(pkg => 
                 pkg.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -86,7 +107,6 @@ export default function AdminPackages() {
     const fetchAllPackages = async () => {
         setLoading(true);
         try {
-            // Fetch packages from all branches
             const branchesData = await fetchAllBranchesForPackages();
             let allPackages = [];
             
@@ -145,6 +165,17 @@ export default function AdminPackages() {
         }
     };
 
+    const fetchServicesByBranch = async (branchId) => {
+        try {
+            const response = await axios.get(`${API_BASE}/service/services/?branch=${branchId}`);
+            const servicesData = response.data.data || response.data.services || response.data.results || [];
+            setBranchServices(servicesData);
+        } catch (error) {
+            console.error('Error fetching branch services:', error);
+            setBranchServices([]);
+        }
+    };
+
     const fetchPackageDetails = async (packageId) => {
         setLoading(true);
         try {
@@ -178,17 +209,27 @@ export default function AdminPackages() {
         if (result.isConfirmed) {
             setLoading(true);
             try {
-                const response = await axios.delete(`${API_BASE}/service/delete-package/${packageId}/`);
+                await axios.delete(`${API_BASE}/service/delete-package/${packageId}/`);
                 
-                if (response.data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Deleted!',
-                        text: 'Package has been deleted.',
-                        confirmButtonColor: '#dba627'
-                    });
-                    fetchAllPackages();
+                // Update the packages state by removing the deleted package
+                const updatedPackages = packages.filter(pkg => pkg.id !== packageId);
+                setPackages(updatedPackages);
+                setFilteredPackages(updatedPackages);
+                
+                // Adjust pagination if needed
+                const newTotalPages = Math.ceil(updatedPackages.length / itemsPerPage);
+                if (currentPage > newTotalPages && currentPage > 1) {
+                    setCurrentPage(currentPage - 1);
                 }
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Deleted!',
+                    text: 'Package has been deleted successfully.',
+                    confirmButtonColor: '#dba627',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
             } catch (error) {
                 console.error('Error deleting package:', error);
                 Swal.fire({
@@ -203,59 +244,235 @@ export default function AdminPackages() {
         }
     };
 
-    const handleEditPackage = async () => {
-        const { value: formValues } = await Swal.fire({
-            title: 'Edit Package',
-            html: `
-                <input id="swal-name" class="swal2-input" placeholder="Package Name" value="${selectedPackage.name || ''}">
-                <textarea id="swal-description" class="swal2-textarea" placeholder="Description">${selectedPackage.description || ''}</textarea>
-                <input id="swal-package-price" class="swal2-input" placeholder="Package Price" value="${selectedPackage.package_price || ''}">
-                <input id="swal-validity-days" class="swal2-input" placeholder="Validity Days" value="${selectedPackage.validity_days || ''}">
-            `,
-            focusConfirm: false,
-            showCancelButton: true,
-            confirmButtonColor: '#dba627',
-            cancelButtonColor: '#333',
-            confirmButtonText: 'Update',
-            preConfirm: () => {
-                return {
-                    name: document.getElementById('swal-name').value,
-                    description: document.getElementById('swal-description').value,
-                    package_price: document.getElementById('swal-package-price').value,
-                    validity_days: document.getElementById('swal-validity-days').value
-                };
-            }
-        });
-
-        if (formValues) {
-            setLoading(true);
-            try {
-                const response = await axios.put(`${API_BASE}/service/update-package/${selectedPackage.id}/`, formValues);
-                
-                if (response.data.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Updated!',
-                        text: 'Package updated successfully',
-                        confirmButtonColor: '#dba627'
-                    });
-                    fetchAllPackages();
-                    if (selectedPackage.id) {
-                        fetchPackageDetails(selectedPackage.id);
-                    }
-                }
-            } catch (error) {
-                console.error('Error updating package:', error);
+    const handleCreatePackage = async (e) => {
+        e.preventDefault();
+        
+        if (!packageFormData.branch) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Please select a branch',
+                confirmButtonColor: '#dba627'
+            });
+            return;
+        }
+        
+        if (selectedServicesList.length === 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Please add at least one service to the package',
+                confirmButtonColor: '#dba627'
+            });
+            return;
+        }
+        
+        setLoading(true);
+        
+        const payload = {
+            name: packageFormData.name,
+            description: packageFormData.description,
+            services: selectedServicesList.map(s => s.id),
+            package_price: parseFloat(packageFormData.package_price),
+            validity_days: parseInt(packageFormData.validity_days),
+            branch: parseInt(packageFormData.branch)
+        };
+        
+        try {
+            const response = await axios.post(`${API_BASE}/service/create-package/`, payload);
+            
+            if (response.data?.success || response.data) {
                 Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.response?.data?.message || 'Failed to update package',
-                    confirmButtonColor: '#dba627'
+                    icon: 'success',
+                    title: 'Success!',
+                    text: 'Package created successfully!',
+                    confirmButtonColor: '#dba627',
+                    timer: 1500,
+                    showConfirmButton: false
                 });
-            } finally {
-                setLoading(false);
+                setShowPackageForm(false);
+                setEditingPackage(null);
+                resetPackageForm();
+                fetchAllPackages();
+            }
+        } catch (error) {
+            console.error('Error creating package:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.response?.data?.message || 'Failed to create package',
+                confirmButtonColor: '#dba627'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdatePackage = async (e) => {
+        e.preventDefault();
+        
+        if (selectedServicesList.length === 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Please add at least one service to the package',
+                confirmButtonColor: '#dba627'
+            });
+            return;
+        }
+        
+        setLoading(true);
+        
+        const payload = {
+            name: packageFormData.name,
+            description: packageFormData.description,
+            services: selectedServicesList.map(s => s.id),
+            package_price: parseFloat(packageFormData.package_price),
+            validity_days: parseInt(packageFormData.validity_days),
+            branch: parseInt(packageFormData.branch)
+        };
+        
+        try {
+            const response = await axios.put(`${API_BASE}/service/update-package/${editingPackage.id}/`, payload);
+            
+            if (response.data?.success || response.data) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: 'Package updated successfully!',
+                    confirmButtonColor: '#dba627',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+                setShowPackageForm(false);
+                setEditingPackage(null);
+                resetPackageForm();
+                fetchAllPackages();
+            }
+        } catch (error) {
+            console.error('Error updating package:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.response?.data?.message || 'Failed to update package',
+                confirmButtonColor: '#dba627'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const openEditPackage = async (pkg) => {
+        setLoading(true);
+        try {
+            // Fetch complete package details including services
+            const response = await axios.get(`${API_BASE}/service/package-detail/${pkg.id}/`);
+            const packageData = response.data.data;
+            
+            setEditingPackage(packageData);
+            setPackageFormData({
+                name: packageData.name || '',
+                description: packageData.description || '',
+                package_price: packageData.package_price || '',
+                validity_days: packageData.validity_days || '',
+                branch: packageData.branch || ''
+            });
+            
+            // Fetch services for this branch
+            await fetchServicesByBranch(packageData.branch);
+            
+            // Map the selected services
+            if (packageData.services && packageData.services.length > 0) {
+                const selectedServices = packageData.services.map(serviceId => {
+                    const service = allServices.find(s => s.id === serviceId);
+                    return {
+                        id: serviceId,
+                        name: service?.name || `Service ${serviceId}`,
+                        price: service?.price || 0,
+                        duration: service?.duration || 0
+                    };
+                });
+                setSelectedServicesList(selectedServices);
+            } else {
+                setSelectedServicesList([]);
+            }
+            
+            setShowPackageForm(true);
+        } catch (error) {
+            console.error('Error fetching package details for edit:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Failed to load package details for editing',
+                confirmButtonColor: '#dba627'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const addServiceToPackage = () => {
+        if (serviceInput.service) {
+            const service = branchServices.find(s => s.id === parseInt(serviceInput.service));
+            if (service && !selectedServicesList.find(s => s.id === service.id)) {
+                setSelectedServicesList([...selectedServicesList, {
+                    id: service.id,
+                    name: service.name,
+                    price: service.price,
+                    duration: service.duration
+                }]);
+                setServiceInput({ service: '' });
+            } else if (selectedServicesList.find(s => s.id === service.id)) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Duplicate Service',
+                    text: 'This service is already added to the package!',
+                    confirmButtonColor: '#dba627',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
             }
         }
+    };
+
+    const removeServiceFromPackage = (index) => {
+        const newServices = [...selectedServicesList];
+        newServices.splice(index, 1);
+        setSelectedServicesList(newServices);
+    };
+
+    const resetPackageForm = () => {
+        setPackageFormData({
+            name: '',
+            description: '',
+            package_price: '',
+            validity_days: '',
+            branch: ''
+        });
+        setSelectedServicesList([]);
+        setServiceInput({ service: '' });
+        setBranchServices([]);
+        setEditingPackage(null);
+    };
+
+    const handlePackageFormChange = (e) => {
+        setPackageFormData({
+            ...packageFormData,
+            [e.target.name]: e.target.value
+        });
+    };
+
+    const calculateTotalPrice = () => {
+        const total = selectedServicesList.reduce((sum, service) => sum + parseFloat(service.price), 0);
+        return total.toFixed(2);
+    };
+
+    const isFormValid = () => {
+        return packageFormData.name && 
+               packageFormData.package_price && 
+               packageFormData.validity_days &&
+               packageFormData.branch &&
+               selectedServicesList.length > 0;
     };
 
     const getServicesNames = (serviceIds) => {
@@ -312,7 +529,7 @@ export default function AdminPackages() {
     return (
         <DashboardLayout>
             <div>
-                {/* Header */}
+                {/* Header with Create Button */}
                 <div className="flex justify-between items-center mb-6 border-b-2 border-[#dba627] pb-4">
                     <div>
                         <h1 className="text-3xl font-bold text-black tracking-tight">
@@ -320,7 +537,229 @@ export default function AdminPackages() {
                         </h1>
                         <p className="text-gray-500 mt-1">View and manage all service packages across all branches</p>
                     </div>
+                    <button
+                        onClick={() => {
+                            resetPackageForm();
+                            setShowPackageForm(true);
+                        }}
+                        className="bg-black text-white font-semibold py-2 px-5 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center gap-2 text-sm cursor-pointer"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Create Package
+                    </button>
                 </div>
+
+                {/* Create/Edit Package Form Modal */}
+                {showPackageForm && (
+                    <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+                        <div className="w-full max-w-3xl max-h-[90vh] overflow-hidden bg-white rounded-2xl border border-gray-200 shadow-xl flex flex-col">
+                            {/* HEADER */}
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-gray-900">
+                                        {editingPackage ? 'Edit Package' : 'Create New Package'}
+                                    </h2>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        {editingPackage ? 'Update package details' : 'Create a service package for a specific branch'}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setShowPackageForm(false);
+                                        resetPackageForm();
+                                    }}
+                                    className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            {/* BODY */}
+                            <div className="overflow-y-auto px-6 py-5">
+                                <form onSubmit={editingPackage ? handleUpdatePackage : handleCreatePackage}>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Select Branch *
+                                            </label>
+                                            <select
+                                                name="branch"
+                                                value={packageFormData.branch}
+                                                onChange={handlePackageFormChange}
+                                                required
+                                                disabled={!!editingPackage}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] disabled:bg-gray-100"
+                                            >
+                                                <option value="">Select a branch</option>
+                                                {branches.map(branch => (
+                                                    <option key={branch.id} value={branch.id}>
+                                                        {branch.name} - {branch.city}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {editingPackage && (
+                                                <p className="text-xs text-gray-500 mt-1">Branch cannot be changed while editing</p>
+                                            )}
+                                        </div>
+
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Package Name *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="name"
+                                                value={packageFormData.name}
+                                                onChange={handlePackageFormChange}
+                                                required
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="e.g., Deluxe Hair Care Package"
+                                            />
+                                        </div>
+
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Description
+                                            </label>
+                                            <textarea
+                                                name="description"
+                                                value={packageFormData.description}
+                                                onChange={handlePackageFormChange}
+                                                rows="3"
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="Describe what's included in this package..."
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Validity Days *
+                                            </label>
+                                            <input
+                                                type="number"
+                                                name="validity_days"
+                                                value={packageFormData.validity_days}
+                                                onChange={handlePackageFormChange}
+                                                required
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="e.g., 30"
+                                            />
+                                        </div>
+
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Services in Package *
+                                            </label>
+                                            {packageFormData.branch && branchServices.length === 0 && (
+                                                <div className="mb-3 p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700">
+                                                    No services found for this branch. Please add services to this branch first.
+                                                </div>
+                                            )}
+                                            <div className="flex gap-2 mb-3">
+                                                <select
+                                                    value={serviceInput.service}
+                                                    onChange={(e) => setServiceInput({ service: e.target.value })}
+                                                    disabled={!packageFormData.branch || branchServices.length === 0}
+                                                    className="flex-1 h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627] disabled:bg-gray-100"
+                                                >
+                                                    <option value="">Select Service</option>
+                                                    {branchServices.map(service => (
+                                                        <option key={service.id} value={service.id}>
+                                                            {service.name} - ₹{service.price} ({service.duration} min)
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={addServiceToPackage}
+                                                    disabled={!packageFormData.branch || branchServices.length === 0}
+                                                    className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold cursor-pointer hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    Add Service
+                                                </button>
+                                            </div>
+
+                                            {selectedServicesList.length > 0 && (
+                                                <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                                                    {selectedServicesList.map((service, index) => (
+                                                        <div key={index} className="p-3 flex justify-between items-center">
+                                                            <div>
+                                                                <span className="text-sm font-medium text-gray-900">{service.name}</span>
+                                                                <span className="text-xs text-gray-500 ml-2">
+                                                                    ₹{service.price} - {service.duration} min
+                                                                </span>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeServiceFromPackage(index)}
+                                                                className="text-red-600 hover:text-red-800 text-sm cursor-pointer"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Total Original Price
+                                            </label>
+                                            <div className="h-10 px-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center">
+                                                <span className="text-sm font-semibold text-gray-700">₹{calculateTotalPrice()}</span>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Package Price (₹) *
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                name="package_price"
+                                                value={packageFormData.package_price}
+                                                onChange={handlePackageFormChange}
+                                                required
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="e.g., 999"
+                                            />
+                                            {packageFormData.package_price && parseFloat(packageFormData.package_price) < parseFloat(calculateTotalPrice()) && (
+                                                <p className="text-xs text-green-600 mt-1">
+                                                    ✨ Customers save ₹{(parseFloat(calculateTotalPrice()) - parseFloat(packageFormData.package_price)).toFixed(2)} with this package!
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* FOOTER */}
+                                    <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowPackageForm(false);
+                                                resetPackageForm();
+                                            }}
+                                            className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={loading || !isFormValid()}
+                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:bg-gray-800 transition-colors"
+                                        >
+                                            {loading ? (editingPackage ? 'Updating...' : 'Creating...') : (editingPackage ? 'Update Package' : 'Create Package')}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Statistics Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
@@ -482,7 +921,10 @@ export default function AdminPackages() {
 
                             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
                                 <button
-                                    onClick={handleEditPackage}
+                                    onClick={() => {
+                                        setShowDetailsModal(false);
+                                        openEditPackage(selectedPackage);
+                                    }}
                                     className="px-4 h-10 rounded-lg bg-black text-white text-sm font-semibold cursor-pointer"
                                 >
                                     Edit Package
@@ -590,6 +1032,15 @@ export default function AdminPackages() {
                                                             </svg>
                                                         </button>
                                                         <button
+                                                            onClick={() => openEditPackage(pkg)}
+                                                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                            title="Edit"
+                                                        >
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            </svg>
+                                                        </button>
+                                                        <button
                                                             onClick={() => handleDeletePackage(pkg.id)}
                                                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                                             title="Delete"
@@ -647,7 +1098,6 @@ export default function AdminPackages() {
                                             </button>
                                             {[...Array(totalPages).keys()].map(number => {
                                                 const pageNumber = number + 1;
-                                                // Show first page, last page, current page, and pages around current page
                                                 if (
                                                     pageNumber === 1 ||
                                                     pageNumber === totalPages ||

@@ -514,11 +514,11 @@ export default function Customers() {
                                                         </div>
                                                         <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-xl">
                                                             <p className="text-xs text-purple-600 font-semibold mb-1">Total Paid</p>
-                                                            <p className="text-2xl font-bold text-purple-900">৳{customerStats.total_paid || '0'}</p>
+                                                            <p className="text-2xl font-bold text-purple-900">₹{customerStats.total_paid || '0'}</p>
                                                         </div>
                                                         <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-4 rounded-xl">
                                                             <p className="text-xs text-orange-600 font-semibold mb-1">Total Discount</p>
-                                                            <p className="text-2xl font-bold text-orange-900">৳{customerStats.total_discount || '0'}</p>
+                                                            <p className="text-2xl font-bold text-orange-900">₹{customerStats.total_discount || '0'}</p>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -716,7 +716,7 @@ export default function Customers() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="text-sm font-semibold text-[#dba627]">
-                                                    ৳{customer.total_spendings || '0.00'}
+                                                    ₹{customer.total_spendings || '0.00'}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">

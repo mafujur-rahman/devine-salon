@@ -164,10 +164,10 @@ export default function UserDashboard() {
                                             </svg>
                                         </div>
                                     </div>
-                                    <p className="text-3xl font-bold text-gray-900">৳{parseFloat(customerStats.total_paid || 0).toLocaleString()}</p>
+                                    <p className="text-3xl font-bold text-gray-900">₹{parseFloat(customerStats.total_paid || 0).toLocaleString()}</p>
                                     <p className="text-sm text-gray-500 mt-1">Total Spent</p>
                                     <div className="mt-4 pt-4 border-t border-gray-100">
-                                        <p className="text-xs text-gray-400">Discount saved: ৳{parseFloat(customerStats.total_discount || 0).toLocaleString()}</p>
+                                        <p className="text-xs text-gray-400">Discount saved: ₹{parseFloat(customerStats.total_discount || 0).toLocaleString()}</p>
                                     </div>
                                 </div>
 
@@ -306,7 +306,7 @@ export default function UserDashboard() {
                                         <div>
                                             <p className="text-sm text-gray-500">Avg. Value per Visit</p>
                                             <p className="text-2xl font-bold text-gray-900">
-                                                ৳{customerStats.visit_count > 0 
+                                                ₹{customerStats.visit_count > 0 
                                                     ? parseFloat(customerStats.total_paid / customerStats.visit_count).toFixed(0)
                                                     : 0}
                                             </p>

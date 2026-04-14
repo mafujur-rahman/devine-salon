@@ -54,7 +54,7 @@ const CreateBranch = ({ onBranchCreated }) => {
 
     const handleCreateBranch = async (e) => {
         e.preventDefault();
-        
+
         setLoading(true);
         try {
             const payload = {
@@ -98,14 +98,14 @@ const CreateBranch = ({ onBranchCreated }) => {
         } catch (error) {
             console.error('Error creating branch:', error);
             console.error('Error response:', error.response?.data);
-            
+
             let errorMessage = 'Failed to create branch';
             if (error.response?.data?.message) {
                 errorMessage = error.response.data.message;
             } else if (error.response?.data?.error) {
                 errorMessage = error.response.data.error;
             }
-            
+
             Swal.fire({
                 icon: 'error',
                 title: 'Error',
@@ -224,113 +224,121 @@ const CreateBranch = ({ onBranchCreated }) => {
                                         <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                             Phone Number *
                                         </label>
-                                        <input
-                                            type="tel"
-                                            name="phone"
-                                            value={formData.phone}
-                                            onChange={handleInputChange}
-                                            required
-                                            placeholder={getPlaceholder('phone')}
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
-                                        />
+                                        <div className="relative">
+                                            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                    <span className="text-base">🇮🇳</span>
+                                                    <span>+91</span>
+                                                </span>
+                                            </div>
+                                            <input
+                                                type="tel"
+                                                name="phone"
+                                                value={formData.phone}
+                                                onChange={handleInputChange}
+                                                required
+                                                placeholder="98765 43210"
+                                                className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                            />
+                                            </div>
+                                        </div>
+
+                                        {/* Email */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Email Address *
+                                            </label>
+                                            <input
+                                                type="email"
+                                                name="email"
+                                                value={formData.email}
+                                                onChange={handleInputChange}
+                                                required
+                                                placeholder={getPlaceholder('email')}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                            />
+                                        </div>
+
+                                        {/* Opening Time */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Opening Time *
+                                            </label>
+                                            <input
+                                                type="time"
+                                                name="opening_time"
+                                                value={formData.opening_time}
+                                                onChange={handleInputChange}
+                                                required
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                            />
+                                        </div>
+
+                                        {/* Closing Time */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Closing Time *
+                                            </label>
+                                            <input
+                                                type="time"
+                                                name="closing_time"
+                                                value={formData.closing_time}
+                                                onChange={handleInputChange}
+                                                required
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                            />
+                                        </div>
+
+                                        {/* GST Number */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                GST Number
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="gst_number"
+                                                value={formData.gst_number}
+                                                onChange={handleInputChange}
+                                                placeholder={getPlaceholder('gst_number')}
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                            />
+                                        </div>
+
+                                        {/* Tax Rate */}
+                                        <div>
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                                                Tax Rate (%)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                name="tax_rate"
+                                                value={formData.tax_rate}
+                                                onChange={handleInputChange}
+                                                placeholder={getPlaceholder('tax_rate')}
+                                                step="0.01"
+                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
+                                            />
+                                        </div>
                                     </div>
 
-                                    {/* Email */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Email Address *
-                                        </label>
-                                        <input
-                                            type="email"
-                                            name="email"
-                                            value={formData.email}
-                                            onChange={handleInputChange}
-                                            required
-                                            placeholder={getPlaceholder('email')}
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
-                                        />
+                                    {/* FOOTER */}
+                                    <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCreateForm(false)}
+                                            className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
+                                        >
+                                            Cancel
+                                        </button>
+
+                                        <button
+                                            type="submit"
+                                            disabled={loading}
+                                            className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer hover:bg-gray-800"
+                                        >
+                                            {loading ? 'Creating...' : 'Create Branch'}
+                                        </button>
                                     </div>
-
-                                    {/* Opening Time */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Opening Time *
-                                        </label>
-                                        <input
-                                            type="time"
-                                            name="opening_time"
-                                            value={formData.opening_time}
-                                            onChange={handleInputChange}
-                                            required
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
-                                        />
-                                    </div>
-
-                                    {/* Closing Time */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Closing Time *
-                                        </label>
-                                        <input
-                                            type="time"
-                                            name="closing_time"
-                                            value={formData.closing_time}
-                                            onChange={handleInputChange}
-                                            required
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
-                                        />
-                                    </div>
-
-                                    {/* GST Number */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            GST Number
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="gst_number"
-                                            value={formData.gst_number}
-                                            onChange={handleInputChange}
-                                            placeholder={getPlaceholder('gst_number')}
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
-                                        />
-                                    </div>
-
-                                    {/* Tax Rate */}
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                                            Tax Rate (%)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="tax_rate"
-                                            value={formData.tax_rate}
-                                            onChange={handleInputChange}
-                                            placeholder={getPlaceholder('tax_rate')}
-                                            step="0.01"
-                                            className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:border-black focus:ring-1 focus:ring-black"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* FOOTER */}
-                                <div className="flex items-center justify-end gap-3 mt-8 pt-5 border-t border-gray-200">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCreateForm(false)}
-                                        className="px-4 h-10 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-50"
-                                    >
-                                        Cancel
-                                    </button>
-
-                                    <button
-                                        type="submit"
-                                        disabled={loading}
-                                        className="px-5 h-10 rounded-lg bg-black text-white text-sm font-semibold disabled:opacity-50 cursor-pointer hover:bg-gray-800"
-                                    >
-                                        {loading ? 'Creating...' : 'Create Branch'}
-                                    </button>
-                                </div>
                             </form>
                         </div>
                     </div>

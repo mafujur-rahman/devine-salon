@@ -19,11 +19,11 @@ export default function AdminStaff() {
     const [selectedStaff, setSelectedStaff] = useState(null);
     const [branches, setBranches] = useState([]);
     const [jobTitles, setJobTitles] = useState([]);
-    
+
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);
-    
+
     const [showJobTitleForm, setShowJobTitleForm] = useState(false);
     const [showJobTitlesModal, setShowJobTitlesModal] = useState(false);
     const [editingJobTitle, setEditingJobTitle] = useState(null);
@@ -32,7 +32,7 @@ export default function AdminStaff() {
         creates_manager_account: false,
         can_take_appointments: true
     });
-    
+
     const [showStaffForm, setShowStaffForm] = useState(false);
     const [editingStaff, setEditingStaff] = useState(null);
     const [staffFormData, setStaffFormData] = useState({
@@ -45,7 +45,7 @@ export default function AdminStaff() {
         base_salary: '',
         branch: ''
     });
-    
+
     const [selectedBranchFilter, setSelectedBranchFilter] = useState('');
     const [selectedJobTitleFilter, setSelectedJobTitleFilter] = useState('');
     const [selectedActiveFilter, setSelectedActiveFilter] = useState('');
@@ -81,27 +81,27 @@ export default function AdminStaff() {
 
     const applyFilters = () => {
         let filtered = [...staff];
-        
+
         if (selectedBranchFilter) {
             filtered = filtered.filter(member => member.branch === parseInt(selectedBranchFilter));
         }
-        
+
         if (selectedJobTitleFilter) {
             filtered = filtered.filter(member => member.job_title === parseInt(selectedJobTitleFilter));
         }
-        
+
         if (selectedActiveFilter !== '') {
             filtered = filtered.filter(member => member.is_active === (selectedActiveFilter === 'active'));
         }
-        
+
         if (searchTerm) {
-            filtered = filtered.filter(member => 
+            filtered = filtered.filter(member =>
                 member.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 member.phone?.includes(searchTerm) ||
                 member.email?.toLowerCase().includes(searchTerm.toLowerCase())
             );
         }
-        
+
         setFilteredStaff(filtered);
     };
 
@@ -172,7 +172,7 @@ export default function AdminStaff() {
         try {
             const response = await axios.get(`${API_BASE}/staff/get-all-job-titles/`);
             const jobTitlesData = response.data.data || response.data.job_titles || response.data.results || [];
-            const filteredJobTitles = jobTitlesData.filter(job => 
+            const filteredJobTitles = jobTitlesData.filter(job =>
                 job.name.toLowerCase() !== 'manager'
             );
             setJobTitles(filteredJobTitles);
@@ -187,7 +187,7 @@ export default function AdminStaff() {
         try {
             const response = await axios.post(`${API_BASE}/staff/create-job-title/`, jobTitleFormData);
             const result = response.data;
-            
+
             if (result.success) {
                 Swal.fire({
                     icon: 'success',
@@ -221,7 +221,7 @@ export default function AdminStaff() {
                 creates_manager_account: jobTitleFormData.creates_manager_account
             });
             const result = response.data;
-            
+
             if (result.success) {
                 Swal.fire({
                     icon: 'success',
@@ -264,13 +264,13 @@ export default function AdminStaff() {
             cancelButtonColor: '#333',
             confirmButtonText: 'Yes, delete it!'
         });
-        
+
         if (result.isConfirmed) {
             setLoading(true);
             try {
                 const response = await axios.delete(`${API_BASE}/staff/delete-job-title/${jobTitleId}/`);
                 const data = response.data;
-                
+
                 if (data.success) {
                     Swal.fire({
                         icon: 'success',
@@ -308,10 +308,10 @@ export default function AdminStaff() {
                 base_salary: parseFloat(staffFormData.base_salary),
                 branch: parseInt(staffFormData.branch)
             };
-            
+
             const response = await axios.post(`${API_BASE}/staff/create-staff/`, payload);
             const result = response.data;
-            
+
             if (result.success) {
                 Swal.fire({
                     icon: 'success',
@@ -350,10 +350,10 @@ export default function AdminStaff() {
                 base_salary: parseFloat(staffFormData.base_salary),
                 branch: parseInt(staffFormData.branch)
             };
-            
+
             const response = await axios.put(`${API_BASE}/staff/update-staff/${editingStaff.id}/`, payload);
             const result = response.data;
-            
+
             if (result.success) {
                 Swal.fire({
                     icon: 'success',
@@ -394,7 +394,7 @@ export default function AdminStaff() {
             setLoading(true);
             try {
                 const response = await axios.delete(`${API_BASE}/staff/delete-staff/${staffId}/`);
-                
+
                 if (response.data.success) {
                     Swal.fire({
                         icon: 'success',
@@ -421,7 +421,7 @@ export default function AdminStaff() {
     const handleToggleActive = async (staffMember) => {
         const newStatus = !staffMember.is_active;
         const action = newStatus ? 'activate' : 'deactivate';
-        
+
         const result = await Swal.fire({
             title: `${newStatus ? 'Activate' : 'Deactivate'} Staff Member?`,
             text: `Are you sure you want to ${action} ${staffMember.name}?`,
@@ -438,7 +438,7 @@ export default function AdminStaff() {
                 const response = await axios.put(`${API_BASE}/staff/update-staff/${staffMember.id}/`, {
                     is_active: newStatus
                 });
-                
+
                 if (response.data.success) {
                     Swal.fire({
                         icon: 'success',
@@ -524,7 +524,7 @@ export default function AdminStaff() {
             setLoading(true);
             try {
                 const response = await axios.put(`${API_BASE}/staff/update-staff/${selectedStaff.id}/`, formValues);
-                
+
                 if (response.data.success) {
                     Swal.fire({
                         icon: 'success',
@@ -686,7 +686,7 @@ export default function AdminStaff() {
                                 </option>
                             ))}
                         </select>
-                        
+
                         <select
                             value={selectedJobTitleFilter}
                             onChange={(e) => setSelectedJobTitleFilter(e.target.value)}
@@ -699,7 +699,7 @@ export default function AdminStaff() {
                                 </option>
                             ))}
                         </select>
-                        
+
                         <select
                             value={selectedActiveFilter}
                             onChange={(e) => setSelectedActiveFilter(e.target.value)}
@@ -709,7 +709,7 @@ export default function AdminStaff() {
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
-                        
+
                         <input
                             type="text"
                             placeholder="Search by name, phone or email..."
@@ -982,16 +982,25 @@ export default function AdminStaff() {
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Phone Number *
                                             </label>
+                                             <div className="relative">
+                                                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                                    <span className="text-gray-500 text-sm flex items-center gap-1">
+                                                        <span className="text-base">🇮🇳</span>
+                                                        <span>+91</span>
+                                                    </span>
+                                                </div>
                                             <input
                                                 type="tel"
                                                 name="phone"
                                                 value={staffFormData.phone}
                                                 onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
                                                 required
-                                                className="w-full h-10 px-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
-                                                placeholder="+91 98765 43210"
+                                                className="w-full h-10 pl-16 pr-3 rounded-lg border border-gray-300 text-sm text-gray-800 outline-none focus:ring-2 focus:ring-[#dba627]"
+                                                placeholder="98765 43210"
                                             />
+                                            </div>
                                         </div>
+                                        
                                         <div>
                                             <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
                                                 Email Address *
@@ -1326,7 +1335,7 @@ export default function AdminStaff() {
                                                     <span className="text-sm font-medium text-gray-900">{member.name}</span>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                    <span className="text-sm text-gray-700">{member.phone}</span>
+                                                    <span className="text-sm text-gray-700">+91{member.phone}</span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div>
@@ -1438,11 +1447,10 @@ export default function AdminStaff() {
                                                         <button
                                                             key={pageNumber}
                                                             onClick={() => paginate(pageNumber)}
-                                                            className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
-                                                                currentPage === pageNumber
+                                                            className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${currentPage === pageNumber
                                                                     ? 'z-10 bg-[#dba627] text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#dba627]'
                                                                     : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
-                                                            }`}
+                                                                }`}
                                                         >
                                                             {pageNumber}
                                                         </button>
