@@ -213,7 +213,7 @@ export default function ManagerDashboard() {
     }
 
     const formatCurrency = (amount) => {
-        return `$${parseFloat(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        return `₹${parseFloat(amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
     const getTopPerformers = () => {
@@ -234,6 +234,9 @@ export default function ManagerDashboard() {
             setCurrentPage(pageNumber);
         }
     };
+
+    // Calculate max revenue for chart
+    const maxWeeklyRevenue = Math.max(...weeklyRevenue.map(d => d.revenue), 1);
 
     if (error) {
         return (
@@ -631,7 +634,7 @@ export default function ManagerDashboard() {
                                         </div>
                                         <div className="w-full bg-gray-100 h-2 rounded-full">
                                             <div
-                                                className="h-2 rounded-full bg-[#dba627]"
+                                                className="h-2 rounded-full bg-[#dba627] transition-all duration-500"
                                                 style={{ width: `${Math.min(100, (staff.total_revenue / 50000) * 100)}%` }}
                                             />
                                         </div>
@@ -643,28 +646,49 @@ export default function ManagerDashboard() {
                             </div>
                         </div>
 
-                        {/* Weekly Revenue Trend */}
+                        {/* Weekly Revenue Trend - Fixed Chart */}
                         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                            <h3 className="text-lg font-semibold text-gray-800 mb-4">Weekly Revenue Trend</h3>
-                            <div className="flex items-end justify-between h-40 gap-2">
-                                {weeklyRevenue.map((data, i) => {
-                                    const maxRevenue = Math.max(...weeklyRevenue.map(d => d.revenue), 1);
-                                    const height = (data.revenue / maxRevenue) * 100;
-                                    return (
-                                        <div key={i} className="flex flex-col items-center flex-1">
-                                            <div
-                                                className="w-full rounded-md bg-[#dba627]/80 transition-all hover:bg-[#dba627] cursor-pointer"
-                                                style={{ height: `${height}%`, minHeight: "4px" }}
-                                            />
-                                            <span className="text-xs text-gray-500 mt-2">{data.day}</span>
-                                            <span className="text-xs font-semibold text-gray-700">${data.revenue}</span>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                <MdTrendingUp className="text-[#dba627]" />
+                                Weekly Revenue Trend
+                            </h3>
+                            {weeklyRevenue.length > 0 && maxWeeklyRevenue > 0 ? (
+                                <>
+                                    <div className="relative h-64 mb-4">
+                                        <div className="absolute inset-0 flex items-end justify-between gap-2">
+                                            {weeklyRevenue.map((data, i) => {
+                                                const height = (data.revenue / maxWeeklyRevenue) * 100;
+                                                return (
+                                                    <div key={i} className="flex flex-col items-center flex-1 h-full">
+                                                        <div className="relative flex-1 w-full flex items-end">
+                                                            <div
+                                                                className="w-full bg-gradient-to-t from-[#dba627] to-[#dba627]/70 rounded-t-lg transition-all duration-500 hover:from-[#c49520] cursor-pointer"
+                                                                style={{ height: `${height}%`, minHeight: "4px" }}
+                                                            >
+                                                                <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                                                    {formatCurrency(data.revenue)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-xs text-gray-500 mt-2 font-medium">{data.day}</span>
+                                                        <span className="text-xs font-semibold text-gray-700 mt-1">{formatCurrency(data.revenue)}</span>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                    );
-                                })}
-                            </div>
-                            <p className="text-xs text-gray-400 mt-4">
-                                📈 {weeklyRevenue.reduce((sum, d) => sum + d.revenue, 0) > 0 ? "Revenue trend for last 7 days" : "No revenue data available yet"}
-                            </p>
+                                    </div>
+                                    <div className="mt-2 pt-2 border-t border-gray-100">
+                                        <p className="text-xs text-gray-400 text-center">
+                                            📊 Weekly revenue trend for last 7 days
+                                        </p>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="text-center py-12 text-gray-400">
+                                    <MdBarChart className="mx-auto text-4xl mb-2 opacity-50" />
+                                    <p>No revenue data available</p>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -683,8 +707,8 @@ export default function ManagerDashboard() {
                             <p className="text-sm text-gray-500 mb-1">Pending Approvals</p>
                             <h2 className="text-2xl font-bold text-gray-800 mb-1">{pendingCount}</h2>
                             <p className="text-xs text-gray-400">Appointments waiting for approval</p>
-                            <div className="mt-3 h-1 w-full bg-gray-100 rounded-full">
-                                <div className="h-1 bg-[#dba627] rounded-full" style={{ width: `${Math.min(100, (pendingCount / 50) * 100)}%` }} />
+                            <div className="mt-3 h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-1 bg-[#dba627] rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (pendingCount / 50) * 100)}%` }} />
                             </div>
                         </div>
 
@@ -701,8 +725,8 @@ export default function ManagerDashboard() {
                             <p className="text-sm text-gray-500 mb-1">Today's Schedule</p>
                             <h2 className="text-2xl font-bold text-gray-800 mb-1">{todayAppointments.length}</h2>
                             <p className="text-xs text-gray-400">Appointments today</p>
-                            <div className="mt-3 h-1 w-full bg-gray-100 rounded-full">
-                                <div className="h-1 bg-[#dba627] rounded-full" style={{ width: `${Math.min(100, (todayAppointments.length / 30) * 100)}%` }} />
+                            <div className="mt-3 h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-1 bg-[#dba627] rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (todayAppointments.length / 30) * 100)}%` }} />
                             </div>
                         </div>
 
@@ -719,8 +743,8 @@ export default function ManagerDashboard() {
                             <p className="text-sm text-gray-500 mb-1">Completed Services</p>
                             <h2 className="text-2xl font-bold text-gray-800 mb-1">{monthlyCompletedCount}</h2>
                             <p className="text-xs text-gray-400">This month</p>
-                            <div className="mt-3 h-1 w-full bg-gray-100 rounded-full">
-                                <div className="h-1 bg-[#dba627] rounded-full" style={{ width: `${Math.min(100, (monthlyCompletedCount / 200) * 100)}%` }} />
+                            <div className="mt-3 h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-1 bg-[#dba627] rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (monthlyCompletedCount / 200) * 100)}%` }} />
                             </div>
                         </div>
                     </div>
